@@ -11,8 +11,13 @@ import { CSS2DRenderer, CSS2DObject } from './css2d-renderer-bundle.js';
 // Scraper data integration with profile picture support
 const sample_data = await chrome.storage.local.get('lsc-latest-profiles').then(res => res['lsc-latest-profiles']);
 let graph;
-console.log('sample_data')
-console.log(sample_data)
+console.log('=== SCRAPER DATA DEBUG ===');
+console.log('Raw sample_data:', sample_data);
+console.log('Type:', typeof sample_data);
+console.log('Is array:', Array.isArray(sample_data));
+if (sample_data && sample_data.length > 0) {
+  console.log('First profile:', sample_data[0]);
+}
 if (sample_data) {
   try {
     // const parsed = JSON.parse(sample_data) // expected: array of profile objects
@@ -31,56 +36,98 @@ if (sample_data) {
       return `n${i}`;
     };
 
-    // helper: extract name from full_name or first_name + last_name
+    // helper: extract name from full_name, first_name + last_name, or scraper name field
     const toName = (p) => {
       if (typeof p?.full_name === 'string' && p.full_name.trim()) return p.full_name.trim();
+      if (typeof p?.name === 'string' && p.name.trim()) return p.name.trim();
       const first = p?.first_name?.trim() || '';
       const last = p?.last_name?.trim() || '';
       return `${first} ${last}`.trim() || 'Unknown';
     };
 
-    // helper: extract company from current_company or company
+    // helper: extract company from current_company, company, or scraper description
     const toCompany = (p) => {
-      return p?.current_company?.trim() || p?.company?.trim() || 'Unknown';
-    };
-
-    // helper: extract school from education
-    const toSchool = (p) => {
-      if (Array.isArray(p?.education) && p.education.length > 0) {
-        return p.education[0]?.school?.trim() || 'Unknown';
+      if (p?.current_company?.trim()) return p.current_company.trim();
+      if (p?.company?.trim()) return p.company.trim();
+      // Try to extract company from description (scraper format)
+      if (p?.description?.trim()) {
+        const desc = p.description.trim();
+        // Look for patterns like "Software Engineer at Google" or "Manager @ Microsoft"
+        const atMatch = desc.match(/(?:at|@)\s*([^,•]+)/i);
+        if (atMatch) return atMatch[1].trim();
+        // Look for patterns like "Google • Software Engineer"
+        const bulletMatch = desc.match(/^([^•]+)\s*•/);
+        if (bulletMatch) return bulletMatch[1].trim();
       }
       return 'Unknown';
     };
 
-    // helper: extract role from current_title or title
+    // helper: extract school from education or location
+    const toSchool = (p) => {
+      if (Array.isArray(p?.education) && p.education.length > 0) {
+        return p.education[0]?.school?.trim() || 'Unknown';
+      }
+      // Try to extract school from description
+      if (p?.description?.trim()) {
+        const desc = p.description.trim();
+        const schoolMatch = desc.match(/(?:university|college|institute|school)\s+of\s+([^,•]+)/i);
+        if (schoolMatch) return schoolMatch[1].trim();
+      }
+      return 'Unknown';
+    };
+
+    // helper: extract role from current_title, title, or scraper description
     const toRole = (p) => {
-      return p?.current_title?.trim() || p?.title?.trim() || 'Unknown';
+      if (p?.current_title?.trim()) return p.current_title.trim();
+      if (p?.title?.trim()) return p.title.trim();
+      // Try to extract role from description (scraper format)
+      if (p?.description?.trim()) {
+        const desc = p.description.trim();
+        // Look for patterns like "Software Engineer at Google"
+        const roleMatch = desc.match(/^([^@•]+?)(?:\s+at\s+|\s*•)/i);
+        if (roleMatch) return roleMatch[1].trim();
+      }
+      return 'Unknown';
     };
 
-    // helper: extract profile picture URL
+    // helper: extract profile picture URL from various possible fields
     const toProfilePic = (p) => {
-      return p?.profile_picture_url?.trim() || p?.profile_pic?.trim() || null;
+      if (p?.profile_picture_url?.trim()) return p.profile_picture_url.trim();
+      if (p?.profile_pic?.trim()) return p.profile_pic.trim();
+      if (p?.img?.trim()) return p.img.trim();
+      return null;
     };
 
-    // build nodes array
-    const nodes = profiles.map((p, i) => ({
-      id: toId(p, i),
-      name: toName(p),
-      degree: 1, // default degree, could be calculated from connections
-      company: toCompany(p),
-      school: toSchool(p),
-      role: toRole(p),
-      profilePic: toProfilePic(p)
-    }));
+    // build nodes array - start with "You" node
+    const nodes = [
+      {
+        id: 'me',
+        name: 'You',
+        degree: 1,
+        company: 'Your Company',
+        school: 'Your School',
+        role: 'Your Role',
+        profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'
+      },
+      ...profiles.map((p, i) => ({
+        id: toId(p, i),
+        name: toName(p),
+        degree: 1, // default degree, could be calculated from connections
+        company: toCompany(p),
+        school: toSchool(p),
+        role: toRole(p),
+        profilePic: toProfilePic(p)
+      }))
+    ];
 
     // build edges array (simplified - in real implementation, this would come from connection data)
     const edges = [];
-    // For now, create some sample connections
+    // Connect "You" node to scraped profiles
     if (nodes.length > 1) {
-      // Connect first few nodes to create a basic network
-      for (let i = 1; i < Math.min(nodes.length, 4); i++) {
+      // Connect "You" node to all scraped profiles
+      for (let i = 1; i < nodes.length; i++) {
         edges.push({
-          source: nodes[0].id, // connect to first node (user)
+          source: 'me', // connect to "You" node
           target: nodes[i].id,
           weight: Math.random() * 0.5 + 0.3, // random weight between 0.3-0.8
           reasons: ['Scraped connection']
@@ -89,7 +136,12 @@ if (sample_data) {
     }
 
     graph = { nodes, edges };
-    console.log('Parsed graph:', graph);
+    console.log('=== PARSED GRAPH DEBUG ===');
+    console.log('Number of nodes:', nodes.length);
+    console.log('Number of edges:', edges.length);
+    console.log('First few nodes:', nodes.slice(0, 3));
+    console.log('First few edges:', edges.slice(0, 3));
+    console.log('Full graph:', graph);
   } catch (error) {
     console.error('Error parsing scraped data:', error);
     // Fallback to sample data if parsing fails
