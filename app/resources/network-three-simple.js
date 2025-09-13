@@ -303,7 +303,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color("#0b1020");
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
-camera.position.set(300, 300, 300);
+camera.position.set(200, 200, 200);
 
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -378,8 +378,10 @@ sample.nodes.forEach((n, idx) => {
       new THREE.MeshBasicMaterial({ 
         color: nodeColor,
         transparent: true,
-        opacity: n.id === 'me' ? 0.2 : 0.1, // Brighter glow for user node
-        side: THREE.BackSide
+        opacity: n.id === 'me' ? 0.08 : 0.05, // Much more ethereal glow
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending, // Additive blending for ethereal glow
+        fog: false // Disable fog for cleaner glow
       })
     );
     glowNode.add(outerGlow);
@@ -391,7 +393,9 @@ sample.nodes.forEach((n, idx) => {
       new THREE.MeshBasicMaterial({ 
         color: nodeColor,
         transparent: true,
-        opacity: n.id === 'me' ? 0.4 : 0.3 // Brighter glow for user node
+        opacity: n.id === 'me' ? 0.15 : 0.1, // Much more ethereal glow
+        blending: THREE.AdditiveBlending, // Additive blending for ethereal glow
+        fog: false // Disable fog for cleaner glow
       })
     );
     glowNode.add(innerGlow);
@@ -457,7 +461,7 @@ sample.nodes.forEach((n, idx) => {
       
       // Add multiple glow layers around profile picture for better color effect
       const glowSizes = n.id === 'me' ? [40, 35, 30] : [32, 28, 24];
-      const glowOpacities = n.id === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
+      const glowOpacities = n.id === 'me' ? [0.15, 0.2, 0.25] : [0.1, 0.15, 0.2];
       
       glowSizes.forEach((glowSize, index) => {
         // Create a ring geometry around the circular node
@@ -470,7 +474,9 @@ sample.nodes.forEach((n, idx) => {
           opacity: glowOpacities[index],
           side: THREE.DoubleSide,
           depthWrite: false, // Don't write to depth buffer
-          depthTest: false   // Don't test depth
+          depthTest: false,  // Don't test depth
+          blending: THREE.AdditiveBlending, // Additive blending for ethereal glow
+          fog: false // Disable fog for cleaner glow
         });
         
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
@@ -1266,8 +1272,8 @@ function animateToLayout(mode) {
   
   // Animate camera position
   const targetCameraPos = mode === '2d' ? 
-    new THREE.Vector3(0, 0, 400) : 
-    new THREE.Vector3(300, 300, 300);
+    new THREE.Vector3(0, 0, 300) : 
+    new THREE.Vector3(200, 200, 200);
   
   const startCameraPos = camera.position.clone();
   const startTarget = controls.target.clone();
