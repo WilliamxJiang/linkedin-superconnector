@@ -442,7 +442,7 @@ sample.nodes.forEach((n, idx) => {
       });
 
       core = new THREE.Mesh(nodeGeometry, nodeMaterial);
-      core.renderOrder = 1; // Profile picture renders on top of glow effects
+      core.renderOrder = 2; // Profile picture renders on top of everything
       
       // Add multiple glow layers around profile picture for better color effect
       const glowSizes = n.id === 'me' ? [40, 35, 30] : [32, 28, 24];
@@ -464,7 +464,7 @@ sample.nodes.forEach((n, idx) => {
         
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
         glow.position.z = -0.1 - (index * 0.05); // Slightly behind the profile picture
-        glow.renderOrder = 0; // Glow renders behind profile picture but above edges
+        glow.renderOrder = 1; // Glow renders behind profile picture but above edges
         glow.userData.isGlow = true;
         glow.userData.isBillboard = true; // Make glow also billboard
         glow.userData.glowIndex = index;
@@ -516,7 +516,7 @@ sample.nodes.forEach((n, idx) => {
       radius * Math.cos(phi)
     );
   }
-  glowNode.renderOrder = -1; // Render nodes first (behind edges)
+  glowNode.renderOrder = 0; // Render nodes above edges but below profile pictures
   nodeGroup.add(glowNode);
   nodeObjs.set(n.id, glowNode);
 
@@ -600,7 +600,7 @@ sample.edges.forEach(e => {
     depthTest: true,
     depthWrite: true
   }));
-  line.renderOrder = 1; // Render edges on top of nodes
+  line.renderOrder = -1; // Render edges behind nodes
   edgeGroup.add(line);
   edgeLines.set(`${e.source}-${e.target}`, line);
 });
@@ -872,7 +872,7 @@ function updateOptimalPath(targetId) {
         cylinder.position.copy(midpoint);
         cylinder.lookAt(t.position);
         cylinder.rotateX(Math.PI / 2);
-        cylinder.renderOrder = 1; // Render cylinders on top of nodes
+        cylinder.renderOrder = 0; // Render cylinders at same level as nodes
         
         // Store reference to remove later
         cylinder.userData = { isOptimalEdge: true, edgeKey: `${e.source}-${e.target}` };
