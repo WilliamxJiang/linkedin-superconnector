@@ -303,7 +303,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color("#0b1020");
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
-camera.position.set(200, 200, 200);
+camera.position.set(250, 250, 250);
 
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -1272,8 +1272,8 @@ function animateToLayout(mode) {
   
   // Animate camera position
   const targetCameraPos = mode === '2d' ? 
-    new THREE.Vector3(0, 0, 300) : 
-    new THREE.Vector3(200, 200, 200);
+    new THREE.Vector3(0, 0, 350) : 
+    new THREE.Vector3(250, 250, 250);
   
   const startCameraPos = camera.position.clone();
   const startTarget = controls.target.clone();
