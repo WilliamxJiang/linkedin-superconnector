@@ -341,6 +341,7 @@ let is3DMode = true; // Track current view mode
 let frozenZPositions = new Map(); // Store Z positions when in 2D mode
 let hoveredNode = null;
 let hoveredNodeOriginalScale = null;
+let networkRotationSpeed = 0.001; // Slow clockwise rotation speed
 
 // Clear any existing nodes to prevent duplicates
 nodeGroup.clear();
@@ -1485,6 +1486,29 @@ function animate(){
         }
       }
     });
+  }
+  
+  // Slow clockwise rotation of the entire network around the "You" node
+  if (is3DMode) {
+    // Rotate all nodes around the Y-axis (vertical axis) with "You" node as center
+    const youNode = nodeObjs.get('me');
+    if (youNode) {
+      const youPosition = youNode.position.clone();
+      
+      nodeObjs.forEach((node, nodeId) => {
+        if (nodeId !== 'me') { // Don't rotate the "You" node itself
+          // Get relative position from "You" node
+          const relativePos = node.position.clone().sub(youPosition);
+          
+          // Apply rotation around Y-axis
+          const rotationMatrix = new THREE.Matrix4().makeRotationY(networkRotationSpeed);
+          relativePos.applyMatrix4(rotationMatrix);
+          
+          // Set new position relative to "You" node
+          node.position.copy(youPosition.clone().add(relativePos));
+        }
+      });
+    }
   }
 
   // Add pulsing scale animation for all highlighted nodes in optimal path
