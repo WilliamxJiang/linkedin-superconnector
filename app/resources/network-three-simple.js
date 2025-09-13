@@ -292,10 +292,10 @@ sample.nodes.forEach((n, idx) => {
       const profileTexture = loader.load(n.profilePic);
       console.log(`✅ Profile picture loaded for ${n.name}`);
 
-      // Create a circular plane that always faces the camera (like a billboard)
-      const planeSize = n.id === 'me' ? 30 : 24;
-      const planeGeometry = new THREE.CircleGeometry(planeSize/2, 32);
-      const planeMaterial = new THREE.MeshBasicMaterial({
+      // Create a 3D sphere with profile picture texture that always faces the camera
+      const sphereSize = n.id === 'me' ? 15 : 12;
+      const sphereGeometry = new THREE.SphereGeometry(sphereSize, 32, 32);
+      const sphereMaterial = new THREE.MeshBasicMaterial({
         map: profileTexture,
         color: 0xffffff, // White to show texture clearly without color distortion
         transparent: false, // Make opaque so it can occlude edges
@@ -305,17 +305,17 @@ sample.nodes.forEach((n, idx) => {
         depthTest: true    // Test depth
       });
 
-      core = new THREE.Mesh(planeGeometry, planeMaterial);
+      core = new THREE.Mesh(sphereGeometry, sphereMaterial);
       core.renderOrder = 1; // Profile picture renders on top of glow effects
       
       // Add multiple glow layers around profile picture for better color effect
-      const glowSizes = n.id === 'me' ? [40, 35, 30] : [32, 28, 24];
+      const glowSizes = n.id === 'me' ? [20, 18, 16] : [16, 14, 12];
       const glowOpacities = n.id === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
       
       glowSizes.forEach((glowSize, index) => {
-        // Create a ring geometry instead of full circle
-        const innerRadius = planeSize/2 + 2; // Start just outside the profile picture
-        const outerRadius = glowSize/2;
+        // Create a ring geometry around the sphere
+        const innerRadius = sphereSize + 1; // Start just outside the profile sphere
+        const outerRadius = glowSize;
         const glowGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 32);
         const glowMaterial = new THREE.MeshBasicMaterial({
           color: nodeColor,
@@ -335,7 +335,7 @@ sample.nodes.forEach((n, idx) => {
         glowNode.add(glow);
       });
       
-      // Make the plane always face the camera by updating its rotation in the animation loop
+      // Make the sphere always face the camera by updating its rotation in the animation loop
       core.userData.isBillboard = true;
       
     } catch (error) {
