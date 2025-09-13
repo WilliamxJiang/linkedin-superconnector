@@ -8,15 +8,15 @@ import * as THREE from './three-bundle.js';
 import { OrbitControls } from './orbit-controls-bundle.js';
 import { CSS2DRenderer, CSS2DObject } from './css2d-renderer-bundle.js';
 
-// Sample data
+// Sample data with profile pictures (using LinkedIn profile image)
 const sample = {
   nodes: [
-    {id:'me', name:'You', degree:1, company:'Ada', school:'UofT'},
-    {id:'a',  name:'Alex Chen', degree:1, company:'Stripe', school:'UofT'},
-    {id:'b',  name:'Bianca Patel', degree:1, company:'Meta', school:'Waterloo'},
-    {id:'d',  name:'Priya N.', degree:2, company:'Google', role:'Manager', school:'MIT'},
-    {id:'e',  name:'Sarah Kim', degree:1, company:'Apple', school:'Stanford'},
-    {id:'f',  name:'Mike Johnson', degree:1, company:'Microsoft', school:'MIT'}
+    {id:'me', name:'You', degree:1, company:'Ada', school:'UofT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
+    {id:'a',  name:'Alex Chen', degree:1, company:'Stripe', school:'UofT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
+    {id:'b',  name:'Bianca Patel', degree:1, company:'Meta', school:'Waterloo', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
+    {id:'d',  name:'Priya N.', degree:2, company:'Google', role:'Manager', school:'MIT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
+    {id:'e',  name:'Sarah Kim', degree:1, company:'Apple', school:'Stanford', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
+    {id:'f',  name:'Mike Johnson', degree:1, company:'Microsoft', school:'MIT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'}
   ],
   edges: [
     {source:'me', target:'a', weight:0.8, reasons:['Direct connection']},
@@ -34,7 +34,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color("#0b1020");
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
-camera.position.set(0, 0, 220);
+camera.position.set(200, 200, 200);
 
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -68,70 +68,194 @@ const nodeAnimations = new Map();
 let currentOptimalPath = { edges: new Set(), path: [] };
 let currentTarget = null;
 let highlightedNodes = new Set();
+let is3DMode = true; // Track current view mode
+let frozenZPositions = new Map(); // Store Z positions when in 2D mode
+let hoveredNode = null;
+let hoveredNodeOriginalScale = null;
 
 // Create nodes
 sample.nodes.forEach((n, idx) => {
   // Create glowing node group
   const glowNode = new THREE.Group();
   
-  // Determine node color based on ID
-  const nodeColor = n.id === 'me' ? 0x9d4edd : 0x4da6ff;
+  // Determine node color based on semantic color scheme
+  let nodeColor;
+  if (n.id === 'me') {
+    nodeColor = 0x4CAF50; // Bright green for user node
+  } else {
+    nodeColor = 0x4DA6FF; // Medium blue for 1st-degree connections
+  }
   
-  // Outer glow sphere
-  const outerGlow = new THREE.Mesh(
-    new THREE.SphereGeometry(12, 16, 12),
-    new THREE.MeshBasicMaterial({ 
-      color: nodeColor,
-      transparent: true,
-      opacity: 0.1,
-      side: THREE.BackSide
-    })
-  );
-  glowNode.add(outerGlow);
+  // Declare glow variables outside the if block
+  let outerGlow = null;
+  let innerGlow = null;
   
-  // Inner glow sphere
-  const innerGlow = new THREE.Mesh(
-    new THREE.SphereGeometry(8, 16, 12),
-    new THREE.MeshBasicMaterial({ 
-      color: nodeColor,
-      transparent: true,
-      opacity: 0.3
-    })
-  );
-  glowNode.add(innerGlow);
+  // Outer glow sphere (only if no profile picture)
+  if (!n.profilePic) {
+    const glowSize = n.id === 'me' ? 24 : 18;
+    outerGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(glowSize, 16, 12),
+      new THREE.MeshBasicMaterial({ 
+        color: nodeColor,
+        transparent: true,
+        opacity: n.id === 'me' ? 0.2 : 0.1, // Brighter glow for user node
+        side: THREE.BackSide
+      })
+    );
+    glowNode.add(outerGlow);
+    
+    // Inner glow sphere (only if no profile picture)
+    const innerGlowSize = n.id === 'me' ? 15 : 12;
+    innerGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(innerGlowSize, 16, 12),
+      new THREE.MeshBasicMaterial({ 
+        color: nodeColor,
+        transparent: true,
+        opacity: n.id === 'me' ? 0.4 : 0.3 // Brighter glow for user node
+      })
+    );
+    glowNode.add(innerGlow);
+  }
   
-  // Core sphere
-  const core = new THREE.Mesh(
-    new THREE.SphereGeometry(4, 16, 12),
-    new THREE.MeshBasicMaterial({ 
+  let core;
+
+  if (n.profilePic) {
+    // Create texture from profile picture
+    const loader = new THREE.TextureLoader();
+    console.log(`Attempting to load profile picture for ${n.name}: ${n.profilePic}`);
+
+    // Load texture synchronously first
+    try {
+      const profileTexture = loader.load(n.profilePic);
+      console.log(`✅ Profile picture loaded for ${n.name}`);
+
+      // Create a circular plane that always faces the camera (like a billboard)
+      const planeSize = n.id === 'me' ? 30 : 24;
+      const planeGeometry = new THREE.CircleGeometry(planeSize/2, 32);
+      const planeMaterial = new THREE.MeshBasicMaterial({
+        map: profileTexture,
+        color: 0xffffff, // White to show texture clearly without color distortion
+        transparent: false, // Make opaque so it can occlude edges
+        opacity: 1.0,
+        side: THREE.DoubleSide,
+        depthWrite: true,  // Write to depth buffer
+        depthTest: true    // Test depth
+      });
+
+      core = new THREE.Mesh(planeGeometry, planeMaterial);
+      core.renderOrder = 1; // Profile picture renders on top of glow effects
+      
+      // Add multiple glow layers around profile picture for better color effect
+      const glowSizes = n.id === 'me' ? [40, 35, 30] : [32, 28, 24];
+      const glowOpacities = n.id === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
+      
+      glowSizes.forEach((glowSize, index) => {
+        // Create a ring geometry instead of full circle
+        const innerRadius = planeSize/2 + 2; // Start just outside the profile picture
+        const outerRadius = glowSize/2;
+        const glowGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 32);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+          color: nodeColor,
+          transparent: true,
+          opacity: glowOpacities[index],
+          side: THREE.DoubleSide,
+          depthWrite: false, // Don't write to depth buffer
+          depthTest: false   // Don't test depth
+        });
+        
+        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+        glow.position.z = -0.1 - (index * 0.05); // Slightly behind the profile picture
+        glow.renderOrder = 0; // Glow renders behind profile picture but above edges
+        glow.userData.isGlow = true;
+        glow.userData.isBillboard = true; // Make glow also billboard
+        glow.userData.glowIndex = index;
+        glowNode.add(glow);
+      });
+      
+      // Make the plane always face the camera by updating its rotation in the animation loop
+      core.userData.isBillboard = true;
+      
+    } catch (error) {
+      console.error(`❌ Failed to load profile picture for ${n.name}:`, error);
+      // Fallback to solid color sphere
+      const coreSize = n.id === 'me' ? 8 : 6;
+      const coreGeometry = new THREE.SphereGeometry(coreSize, 16, 12);
+      const coreMaterial = new THREE.MeshBasicMaterial({
+        color: nodeColor,
+        transparent: true,
+        opacity: 0.8
+      });
+      core = new THREE.Mesh(coreGeometry, coreMaterial);
+    }
+  } else {
+    // Fallback to solid color sphere
+    const coreSize = n.id === 'me' ? 8 : 6;
+    const coreGeometry = new THREE.SphereGeometry(coreSize, 16, 12);
+    const coreMaterial = new THREE.MeshBasicMaterial({
       color: nodeColor,
       transparent: true,
       opacity: 0.8
-    })
-  );
+    });
+    core = new THREE.Mesh(coreGeometry, coreMaterial);
+  }
+
   glowNode.add(core);
   
-  // Layout nodes with 'me' at center
+  // Layout nodes in 3D space with 'me' at center
   if (n.id === 'me') {
     glowNode.position.set(0, 0, 0);
   } else {
-    const angle = (idx - 1) * (Math.PI * 2) / (sample.nodes.length - 1);
-    const radius = 60;
+    // Use spherical coordinates for 3D distribution
+    const phi = Math.acos(2 * Math.random() - 1); // Random polar angle (0 to π)
+    const theta = 2 * Math.PI * Math.random(); // Random azimuthal angle (0 to 2π)
+    const radius = 80 + Math.random() * 80; // Random radius between 80 and 160
+    
+    // Convert spherical to Cartesian coordinates
     glowNode.position.set(
-      Math.cos(angle) * radius,
-      Math.sin(angle) * radius,
-      0
+      radius * Math.sin(phi) * Math.cos(theta),
+      radius * Math.sin(phi) * Math.sin(theta),
+      radius * Math.cos(phi)
     );
   }
+  glowNode.renderOrder = -1; // Render nodes first (behind edges)
   nodeGroup.add(glowNode);
   nodeObjs.set(n.id, glowNode);
 
+  // Create detailed label with name and company (hidden by default)
   const labelDiv = document.createElement("div");
   labelDiv.className = "tooltip";
-  labelDiv.textContent = n.name;
+  
+  // Format: "Firstname Lastname, Role @ Company"
+  let labelText = n.name;
+  if (n.role && n.company) {
+    labelText += `, ${n.role} @ ${n.company}`;
+  } else if (n.company) {
+    labelText += ` @ ${n.company}`;
+  }
+  
+  labelDiv.textContent = labelText;
+  
+  // Show "You" node label by default, hide others
+  if (n.id === 'me') {
+    labelDiv.style.display = 'block';
+    labelDiv.style.visibility = 'visible';
+    labelDiv.style.opacity = '1';
+  } else {
+    labelDiv.style.display = 'none'; // Hidden by default, shown on hover
+    labelDiv.style.visibility = 'hidden'; // Double ensure it's hidden
+    labelDiv.style.opacity = '0'; // Make it completely invisible
+  }
+  
   const label = new CSS2DObject(labelDiv);
-  label.position.set(0, -12, 0);
+  label.position.set(0, -15, 0); // Position below the node
   glowNode.add(label);
+  
+  // Store reference to label for hover effects
+  glowNode.userData = { 
+    nodeId: n.id, 
+    label: labelDiv,
+    originalScale: 1
+  };
 
   nodeAnimations.set(n.id, {
     originalPos: glowNode.position.clone(),
@@ -141,8 +265,8 @@ sample.nodes.forEach((n, idx) => {
     scaleAmplitude: 0.1 + Math.random()*0.1,
     scaleFrequency: 0.3 + Math.random()*0.4,
     glowNode: glowNode,
-    outerGlow: outerGlow,
-    innerGlow: innerGlow,
+    outerGlow: outerGlow, // null if no profile picture
+    innerGlow: innerGlow, // null if no profile picture
     core: core
   });
 });
@@ -155,31 +279,77 @@ sample.edges.forEach(e => {
   if (!s || !t) return;
   const geom = new THREE.BufferGeometry().setFromPoints([s.position, t.position]);
   
-  // Determine edge strength based on weight
-  let color, opacity, linewidth;
-  if (e.weight >= 0.7) {
-    color = 0x4da6ff;
-    opacity = 0.9;
-    linewidth = 3;
-  } else if (e.weight >= 0.5) {
-    color = 0x6b9bd2;
-    opacity = 0.8;
-    linewidth = 2;
-  } else {
-    color = 0x9aa7c6;
-    opacity = 0.6;
-    linewidth = 1;
-  }
+  // Default edge color - light gray at 60% opacity
+  const color = 0x9aa7c6;
+  const opacity = 0.6;
+  const linewidth = 3;
   
   const line = new THREE.Line(geom, new THREE.LineBasicMaterial({ 
     color: color, 
     transparent: true, 
     opacity: opacity,
-    linewidth: linewidth
+    depthTest: true,
+    depthWrite: true
   }));
+  line.renderOrder = 1; // Render edges on top of nodes
   edgeGroup.add(line);
   edgeLines.set(`${e.source}-${e.target}`, line);
 });
+
+// Zoom in on optimal path nodes
+function zoomToOptimalPath() {
+  if (!currentOptimalPath || currentOptimalPath.path.length === 0) return;
+  
+  // Get all nodes in the optimal path
+  const pathNodes = currentOptimalPath.path.map(nodeId => nodeObjs.get(nodeId)).filter(node => node);
+  
+  if (pathNodes.length === 0) return;
+  
+  // Calculate bounding box of optimal path nodes
+  const box = new THREE.Box3();
+  pathNodes.forEach(node => box.expandByObject(node));
+  
+  // Get center and size of the bounding box
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  
+  // Calculate distance needed to fit the bounding box in view
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const distance = maxDim * 2; // Add some padding
+  
+  // Calculate new camera position
+  const direction = new THREE.Vector3().subVectors(camera.position, center).normalize();
+  const newPosition = center.clone().add(direction.multiplyScalar(distance));
+  
+  // Animate camera to new position
+  const startPosition = camera.position.clone();
+  const startTarget = controls.target.clone();
+  const newTarget = center.clone();
+  
+  let progress = 0;
+  const duration = 1000; // 1 second animation
+  const startTime = performance.now();
+  
+  function animateCamera() {
+    const elapsed = performance.now() - startTime;
+    progress = Math.min(elapsed / duration, 1);
+    
+    // Easing function for smooth animation
+    const easeInOutCubic = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const easedProgress = easeInOutCubic(progress);
+    
+    // Interpolate camera position and target
+    camera.position.lerpVectors(startPosition, newPosition, easedProgress);
+    controls.target.lerpVectors(startTarget, newTarget, easedProgress);
+    controls.update();
+    
+    if (progress < 1) {
+      requestAnimationFrame(animateCamera);
+    }
+  }
+  
+  animateCamera();
+}
 
 // Find optimal path from 'me' to a specific target node
 function findOptimalPathToTarget(targetId) {
@@ -237,36 +407,112 @@ function highlightNode(nodeId, highlightType = 'none') {
   const node = nodeObjs.get(nodeId);
   if (!node) return;
   
-  const originalColor = nodeId === 'me' ? 0x9d4edd : 0x4da6ff;
+  const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
   
   if (highlightType === 'target') {
-    // Target node - bright orange
+    // Target node - vivid orange
     highlightedNodes.add(nodeId);
     node.children.forEach(child => {
       if (child.material) {
-        child.material.color.setHex(0xff6b35); // Bright orange
+        if (child.userData.isBillboard) {
+          // Keep profile picture unchanged - no color overlay
+          // Profile picture stays clear and undistorted
+        } else if (child.userData.isGlow) {
+          // For glow effects, make them more prominent with orange
+          child.material.color.setHex(0xFF7043);
+          child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0); // Much brighter, cap at 1.0
+        } else {
+          child.material.color.setHex(0xFF7043); // Vivid orange
+        }
       }
     });
+    
+    // Add subtle glow effect for optimal path
+    if (node.userData && node.userData.glowNode) {
+      node.userData.glowNode.children.forEach(child => {
+        if (child.material && child.material.emissive) {
+          child.material.emissive.setHex(0x331100); // Subtle orange glow
+          child.material.emissiveIntensity = 0.3;
+        }
+      });
+    }
+    
+    // Make the target node's label permanently visible
+    if (node.userData && node.userData.label) {
+      node.userData.label.style.display = 'block';
+      node.userData.label.style.visibility = 'visible';
+      node.userData.label.style.opacity = '1';
+    }
   } else if (highlightType === 'intermediate') {
     // Intermediate node - yellow
     highlightedNodes.add(nodeId);
     node.children.forEach(child => {
       if (child.material) {
-        child.material.color.setHex(0xffd700); // Gold/yellow
+        if (child.userData.isBillboard) {
+          // Keep profile picture unchanged - no color overlay
+          // Profile picture stays clear and undistorted
+        } else if (child.userData.isGlow) {
+          // For glow effects, make them more prominent with yellow
+          child.material.color.setHex(0xffd700);
+          child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0); // Much brighter, cap at 1.0
+        } else {
+          child.material.color.setHex(0xffd700); // Gold/yellow
+        }
       }
     });
+    
+    // Add subtle glow effect for optimal path
+    if (node.userData && node.userData.glowNode) {
+      node.userData.glowNode.children.forEach(child => {
+        if (child.material && child.material.emissive) {
+          child.material.emissive.setHex(0x332200); // Subtle yellow glow
+          child.material.emissiveIntensity = 0.2;
+        }
+      });
+    }
   } else {
     // Clear highlighting
     highlightedNodes.delete(nodeId);
     node.children.forEach(child => {
       if (child.material) {
-        child.material.color.setHex(originalColor);
+        if (child.userData.isBillboard) {
+          // Keep profile picture unchanged - no color overlay
+          // Profile picture stays clear and undistorted
+        } else if (child.userData.isGlow) {
+          // For glow effects, restore original color and opacity
+          child.material.color.setHex(originalColor);
+          // Restore original opacity based on glow layer
+          const originalOpacities = nodeId === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
+          child.material.opacity = originalOpacities[child.userData.glowIndex] || 0.3;
+        } else {
+          child.material.color.setHex(originalColor);
+        }
       }
     });
+    
+    // Reset glow effect
+    if (node.userData && node.userData.glowNode) {
+      node.userData.glowNode.children.forEach(child => {
+        if (child.material && child.material.emissive) {
+          child.material.emissive.setHex(0x000000); // Reset glow
+          child.material.emissiveIntensity = 0;
+        }
+      });
+    }
   }
 }
 
 function updateOptimalPath(targetId) {
+  // Hide the previous target's label if it exists and is not 'me'
+  if (currentTarget && currentTarget !== 'me') {
+    const previousTargetNode = nodeObjs.get(currentTarget);
+    if (previousTargetNode && previousTargetNode.userData && previousTargetNode.userData.label) {
+      previousTargetNode.userData.label.style.display = 'none';
+      previousTargetNode.userData.label.style.visibility = 'hidden';
+      previousTargetNode.userData.label.style.opacity = '0';
+    }
+  }
+  
   // Clear previous highlights
   highlightedNodes.forEach(nodeId => highlightNode(nodeId, 'none'));
   highlightedNodes.clear();
@@ -287,7 +533,7 @@ function updateOptimalPath(targetId) {
     }
   });
   
-  // Update edge colors
+  // Update edge colors and create thick cylinders for optimal path
   sample.edges.forEach(e => {
     const line = edgeLines.get(`${e.source}-${e.target}`);
     if (!line) return;
@@ -295,30 +541,59 @@ function updateOptimalPath(targetId) {
     const isOptimal = currentOptimalPath.edges.has(`${e.source}-${e.target}`);
     
     if (isOptimal) {
-      // Highlight optimal path edges in bright green
-      line.material.color.setHex(0x00ff88);
-      line.material.opacity = 0.9;
-      line.material.linewidth = 4; // Even thicker for optimal path
+      // Hide the original line and create a thick cylinder
+      line.visible = false;
+      
+      // Create thick cylinder for optimal path
+      const s = nodeObjs.get(e.source);
+      const t = nodeObjs.get(e.target);
+      if (s && t) {
+        const direction = new THREE.Vector3().subVectors(t.position, s.position);
+        const length = direction.length();
+        const midpoint = new THREE.Vector3().addVectors(s.position, t.position).multiplyScalar(0.5);
+        
+        const cylinderGeometry = new THREE.CylinderGeometry(0.6, 0.6, length, 8);
+        const cylinderMaterial = new THREE.MeshBasicMaterial({
+          color: 0xFFD700, // Gold for highlighted path edges
+          transparent: true,
+          opacity: 0.9
+        });
+        
+        const cylinder = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
+        cylinder.position.copy(midpoint);
+        cylinder.lookAt(t.position);
+        cylinder.rotateX(Math.PI / 2);
+        cylinder.renderOrder = 1; // Render cylinders on top of nodes
+        
+        // Store reference to remove later
+        cylinder.userData = { isOptimalEdge: true, edgeKey: `${e.source}-${e.target}` };
+        edgeGroup.add(cylinder);
+      }
     } else {
+      // Show the original line and remove any existing cylinder
+      line.visible = true;
+      
+      // Remove any existing optimal path cylinder for this edge
+      edgeGroup.children.forEach(child => {
+        if (child.userData && child.userData.isOptimalEdge && child.userData.edgeKey === `${e.source}-${e.target}`) {
+          edgeGroup.remove(child);
+        }
+      });
+      
       // Restore original strength-based colors
-      let color, opacity, linewidth;
+      let color, opacity;
       if (e.weight >= 0.7) {
         color = 0x4da6ff; // Bright blue
         opacity = 0.9;
-        linewidth = 3;
       } else if (e.weight >= 0.5) {
         color = 0x6b9bd2; // Medium blue
         opacity = 0.8;
-        linewidth = 2;
       } else {
         color = 0x9aa7c6; // Gray
         opacity = 0.6;
-        linewidth = 1;
       }
-      
       line.material.color.setHex(color);
       line.material.opacity = opacity;
-      line.material.linewidth = linewidth;
     }
   });
   
@@ -344,8 +619,53 @@ function updateSidebarInfo() {
   optimalPathDiv.style.display = 'block';
   optimalPathDiv.innerHTML = `
     <strong>Optimal Path to ${targetNode ? targetNode.name : 'Target'}:</strong><br>
-    ${pathNames.join(' → ')}
+    ${pathNames.join(' → ')}<br>
+    <em style="color: #FFD700; cursor: pointer; text-decoration: underline;">Click to zoom in on path</em>
   `;
+  
+  // Add click event listener for zoom functionality
+  optimalPathDiv.style.cursor = 'pointer';
+  optimalPathDiv.onclick = zoomToOptimalPath;
+}
+
+// Hover effect functions
+function applyHoverEffect(node) {
+  if (!node.userData) return;
+  
+  // Store original scale
+  hoveredNodeOriginalScale = node.scale.clone();
+  
+  // Enlarge the node
+  node.scale.multiplyScalar(1.3);
+  
+  // Show the label
+  if (node.userData.label) {
+    node.userData.label.style.display = 'block';
+    node.userData.label.style.visibility = 'visible';
+    node.userData.label.style.opacity = '1';
+  }
+  
+  // Change cursor
+  renderer.domElement.style.cursor = 'pointer';
+}
+
+function resetHoverEffect(node) {
+  if (!node.userData) return;
+  
+  // Reset scale
+  if (hoveredNodeOriginalScale) {
+    node.scale.copy(hoveredNodeOriginalScale);
+  }
+  
+  // Hide the label (but never hide the "You" node label or current target node)
+  if (node.userData.label && node.userData.nodeId !== 'me' && node.userData.nodeId !== currentTarget) {
+    node.userData.label.style.display = 'none';
+    node.userData.label.style.visibility = 'hidden';
+    node.userData.label.style.opacity = '0';
+  }
+  
+  // Reset cursor
+  renderer.domElement.style.cursor = 'default';
 }
 
 // Dragging functionality
@@ -406,6 +726,11 @@ function onPointerMove(ev){
     raycaster.setFromCamera(pointer, camera);
     if(raycaster.ray.intersectPlane(dragPlane, planeIntersect)){
       draggedNode.position.copy(planeIntersect).add(dragOffset);
+      
+      // In 2D mode, lock Z position to 0
+      if (!is3DMode) {
+        draggedNode.position.z = 0;
+      }
 
       const id = [...nodeObjs.entries()].find(([_, n]) => n === draggedNode)?.[0];
       if(id){
@@ -413,6 +738,36 @@ function onPointerMove(ev){
         if(anim) anim.originalPos.copy(draggedNode.position);
       }
       updateEdges();
+    }
+  } else {
+    // Handle hover effects when not dragging
+    setPointer(ev);
+    raycaster.setFromCamera(pointer, camera);
+    const nodeArray = Array.from(nodeObjs.values());
+    const intersects = raycaster.intersectObjects(nodeArray, true);
+    
+    if(intersects.length > 0) {
+      // Find the parent group that contains this mesh
+      let parent = intersects[0].object.parent;
+      while(parent && !nodeArray.includes(parent)) {
+        parent = parent.parent;
+      }
+      
+      if(parent && parent !== hoveredNode) {
+        // New node hovered
+        if(hoveredNode) {
+          // Reset previous hovered node
+          resetHoverEffect(hoveredNode);
+        }
+        
+        // Apply hover effect to new node
+        hoveredNode = parent;
+        applyHoverEffect(hoveredNode);
+      }
+    } else if(hoveredNode) {
+      // No node hovered, reset current hovered node
+      resetHoverEffect(hoveredNode);
+      hoveredNode = null;
     }
   }
 }
@@ -460,6 +815,146 @@ searchInput.addEventListener('keypress', (e) => {
     searchAndHighlight();
   }
 });
+
+// 2D/3D Toggle functionality
+const viewToggle3D = document.getElementById('viewToggle');
+const viewToggle2D = document.getElementById('viewToggle2d');
+
+viewToggle3D.addEventListener('click', () => switchTo3D());
+viewToggle2D.addEventListener('click', () => switchTo2D());
+
+// Switch to 3D mode
+function switchTo3D() {
+  if (is3DMode) return;
+  is3DMode = true;
+  updateToggleButtons();
+  updateControlsForMode();
+  animateToLayout('3d');
+}
+
+// Switch to 2D mode
+function switchTo2D() {
+  if (!is3DMode) return;
+  is3DMode = false;
+  updateToggleButtons();
+  updateControlsForMode();
+  animateToLayout('2d');
+}
+
+// Update toggle button states
+function updateToggleButtons() {
+  viewToggle3D.classList.toggle('active', is3DMode);
+  viewToggle2D.classList.toggle('active', !is3DMode);
+}
+
+// Update camera controls based on mode
+function updateControlsForMode() {
+  if (is3DMode) {
+    // 3D mode - full 3D controls
+    controls.enableRotate = true;
+    controls.enableZoom = true;
+    controls.enablePan = true;
+    controls.minPolarAngle = 0;
+    controls.maxPolarAngle = Math.PI;
+  } else {
+    // 2D mode - constrain to 2D plane
+    controls.enableRotate = true;
+    controls.enableZoom = true;
+    controls.enablePan = true;
+    controls.minPolarAngle = Math.PI/2 - 0.1; // Lock to top-down view
+    controls.maxPolarAngle = Math.PI/2 + 0.1;
+  }
+}
+
+// Animate nodes to new layout
+function animateToLayout(mode) {
+  const duration = 1000; // 1 second animation
+  const startTime = performance.now();
+  
+  // Store original positions
+  const originalPositions = new Map();
+  nodeObjs.forEach((node, nodeId) => {
+    originalPositions.set(nodeId, node.position.clone());
+  });
+  
+  // Calculate target positions - much simpler approach
+  const targetPositions = new Map();
+  nodeObjs.forEach((node, nodeId) => {
+    const currentPos = node.position.clone();
+    let targetPos;
+    
+    if (mode === '2d') {
+      // Going to 2D: freeze current X,Y, set Z to 0
+      targetPos = new THREE.Vector3(currentPos.x, currentPos.y, 0);
+      // Store the original Z position for restoration later
+      frozenZPositions.set(nodeId, currentPos.z);
+    } else {
+      // Going to 3D: restore X,Y,Z (or use current if no frozen Z)
+      const frozenZ = frozenZPositions.get(nodeId);
+      if (frozenZ !== undefined) {
+        // Use the frozen Z position directly for smooth transition
+        targetPos = new THREE.Vector3(currentPos.x, currentPos.y, frozenZ);
+        frozenZPositions.delete(nodeId); // Clear the frozen position
+      } else {
+        // No frozen Z, just use current position
+        targetPos = currentPos.clone();
+      }
+    }
+    targetPositions.set(nodeId, targetPos);
+  });
+  
+  // Animate camera position
+  const targetCameraPos = mode === '2d' ? 
+    new THREE.Vector3(0, 0, 300) : 
+    new THREE.Vector3(200, 200, 200);
+  
+  const startCameraPos = camera.position.clone();
+  const startTarget = controls.target.clone();
+  const targetControlsTarget = new THREE.Vector3(0, 0, 0);
+  
+  function animateLayout() {
+    const elapsed = performance.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    
+    // Use a smoother easing function for 2D to 3D transitions
+    let easedProgress;
+    if (mode === '2d') {
+      // 3D to 2D: use standard easing
+      easedProgress = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+    } else {
+      // 2D to 3D: use smoother easing to prevent skipping
+      easedProgress = progress * progress * (3 - 2 * progress); // Smooth step function
+    }
+    
+    // Animate node positions
+    nodeObjs.forEach((node, nodeId) => {
+      const startPos = originalPositions.get(nodeId);
+      const targetPos = targetPositions.get(nodeId);
+      if (startPos && targetPos) {
+        node.position.lerpVectors(startPos, targetPos, easedProgress);
+      }
+    });
+    
+    // Animate camera
+    camera.position.lerpVectors(startCameraPos, targetCameraPos, easedProgress);
+    controls.target.lerpVectors(startTarget, targetControlsTarget, easedProgress);
+    controls.update();
+    
+    if (progress < 1) {
+      requestAnimationFrame(animateLayout);
+    } else {
+      // Update original positions for floating animation
+      nodeObjs.forEach((node, nodeId) => {
+        const anim = nodeAnimations.get(nodeId);
+        if (anim) {
+          anim.originalPos.copy(node.position);
+        }
+      });
+    }
+  }
+  
+  animateLayout();
+}
 
 // Industry clustering analysis
 function analyzeIndustryClusters() {
@@ -511,18 +1006,33 @@ updateLargestCluster();
 function animate(){
   requestAnimationFrame(animate);
 
-  // Gentle float animation (skip dragged)
+  // Gentle float animation (skip dragged and hovered)
   const t = performance.now()*0.001;
   nodeObjs.forEach((node, id)=>{
-    if(node === draggedNode) return;
+    if(node === draggedNode || node === hoveredNode) return;
     const a = nodeAnimations.get(id); 
     if(!a) return;
     
+    // Keep X and Y floating consistent between 2D and 3D modes
     const fx = Math.sin(t*a.frequency + a.timeOffset) * a.amplitude * 0.3;
-    const fy = Math.sin(t*a.frequency*0.7 + a.timeOffset + Math.PI/3) * a.amplitude;
-    const fz = Math.sin(t*a.frequency*0.5 + a.timeOffset + Math.PI/2) * a.amplitude * 0.2;
+    const fy = Math.sin(t*a.frequency*0.7 + a.timeOffset + Math.PI/3) * a.amplitude * 0.3;
+    
+    let fz;
+    if (is3DMode) {
+      // 3D mode - add Z movement
+      fz = Math.sin(t*a.frequency*0.5 + a.timeOffset + Math.PI/2) * a.amplitude * 0.4;
+    } else {
+      // 2D mode - no Z movement
+      fz = 0;
+    }
 
+    // Apply floating animation
     node.position.set(a.originalPos.x + fx, a.originalPos.y + fy, a.originalPos.z + fz);
+    
+    // In 2D mode, force Z to stay at 0
+    if (!is3DMode) {
+      node.position.z = 0;
+    }
 
     const s = 1 + Math.sin(t*a.scaleFrequency + a.timeOffset)*a.scaleAmplitude;
     node.scale.setScalar(s);
@@ -538,6 +1048,99 @@ function animate(){
       a.innerGlow.scale.setScalar(glowPulse * 0.8);
       a.innerGlow.material.opacity = 0.3 + Math.sin(t*1.5 + a.timeOffset) * 0.1;
       a.core.scale.setScalar(glowPulse * 0.6);
+    }
+    
+    // Billboard rotation for profile picture planes and glow effects
+    node.children.forEach(child => {
+      if (child.userData.isBillboard) {
+        // Make both profile pictures and glow effects always face the camera
+        child.lookAt(camera.position);
+      }
+    });
+  });
+
+  // Update optimal path cylinder positions when nodes move
+  if (currentOptimalPath && currentOptimalPath.edges.size > 0) {
+    edgeGroup.children.forEach(child => {
+      if (child.userData && child.userData.isOptimalEdge) {
+        const edgeKey = child.userData.edgeKey;
+        const [sourceId, targetId] = edgeKey.split('-');
+        const sourceNode = nodeObjs.get(sourceId);
+        const targetNode = nodeObjs.get(targetId);
+        
+        if (sourceNode && targetNode) {
+          // Update cylinder position and rotation
+          const direction = new THREE.Vector3().subVectors(targetNode.position, sourceNode.position);
+          const length = direction.length();
+          const midpoint = new THREE.Vector3().addVectors(sourceNode.position, targetNode.position).multiplyScalar(0.5);
+          
+          child.position.copy(midpoint);
+          child.lookAt(targetNode.position);
+          child.rotateX(Math.PI / 2);
+          
+          // Update cylinder scale to match new length
+          child.scale.set(1, length / child.geometry.parameters.height, 1);
+        }
+      }
+    });
+  }
+
+  // Add pulsing scale animation for all highlighted nodes in optimal path
+  highlightedNodes.forEach(nodeId => {
+    if (nodeId !== 'me') {
+      const node = nodeObjs.get(nodeId);
+      if (node) {
+        const pulseScale = 1 + Math.sin(t * 2) * 0.2; // Pulsing scale animation
+        node.scale.setScalar(pulseScale);
+        
+        // Also pulse the glow effects with correct colors
+        node.children.forEach(child => {
+          if (child.userData.isGlow) {
+            // Make target node glow slightly larger for emphasis
+            const isTarget = nodeId === currentTarget;
+            const glowPulse = isTarget ? 
+              1 + Math.sin(t * 2.5) * 0.4 : // Larger pulse for target node
+              1 + Math.sin(t * 2.5) * 0.3;  // Normal pulse for intermediate nodes
+            const opacityPulse = 0.5 + Math.sin(t * 1.8) * 0.3; // Pulse opacity too
+            child.scale.setScalar(glowPulse);
+            child.material.opacity = Math.min(opacityPulse, 1.0);
+            
+            // Apply correct color based on node position in path
+            if (nodeId === currentTarget) {
+              // Target node - bright orange
+              child.material.color.setHex(0xFF7043);
+            } else if (currentOptimalPath.path.includes(nodeId)) {
+              // Intermediate node - yellow
+              child.material.color.setHex(0xffd700);
+            } else {
+              // Default color
+              const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
+              child.material.color.setHex(originalColor);
+            }
+          }
+        });
+      }
+    }
+  });
+  
+  // Reset non-highlighted nodes to original state
+  nodeObjs.forEach((node, nodeId) => {
+    if (!highlightedNodes.has(nodeId) && nodeId !== 'me') {
+      // Reset scale to normal
+      node.scale.setScalar(1);
+      
+      // Reset glow effects to original colors and opacity
+      node.children.forEach(child => {
+        if (child.userData.isGlow) {
+          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
+          child.material.color.setHex(originalColor);
+          
+          // Reset to original opacity based on glow layer
+          const originalOpacities = nodeId === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
+          child.material.opacity = originalOpacities[child.userData.glowIndex] || 0.3;
+          child.scale.setScalar(1); // Reset glow scale
+        }
+      });
     }
   });
 
