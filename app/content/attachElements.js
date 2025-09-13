@@ -1,7 +1,8 @@
 const NUM_IFRAMES = 1
 const IFRAME_ELEMENTS = []
 
-let CONNECTIONS_IFRAME = null
+// Make CONNECTIONS_IFRAME globally accessible
+window.CONNECTIONS_IFRAME = null
 
 // wait for window to load
 window.addEventListener("load", async () => {
@@ -23,11 +24,11 @@ window.addEventListener("load", async () => {
             IFRAME_ELEMENTS.push(iframe)
         }
 
-        CONNECTIONS_IFRAME = document.createElement('iframe')
-        CONNECTIONS_IFRAME.id = 'connected-iframe'
-        CONNECTIONS_IFRAME.className = 'mapper-iframe'
-        CONNECTIONS_IFRAME.src = `https://www.linkedin.com/mynetwork/invite-connect/connections/`
-        container.appendChild(CONNECTIONS_IFRAME)
+        window.CONNECTIONS_IFRAME = document.createElement('iframe')
+        window.CONNECTIONS_IFRAME.id = 'connected-iframe'
+        window.CONNECTIONS_IFRAME.className = 'mapper-iframe'
+        window.CONNECTIONS_IFRAME.src = `https://www.linkedin.com/mynetwork/invite-connect/connections/`
+        container.appendChild(window.CONNECTIONS_IFRAME)
     }
     
     attachElements()

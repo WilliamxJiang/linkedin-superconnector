@@ -28,7 +28,12 @@ window.addEventListener("load", async () => {
             // console.log(profiles)
             // console.log(scrapeProfiles())
 
-            startAutoClickLoadMore({ text: "load more", partial: false, interval: 1200 }, CONNECTIONS_IFRAME);
+            // Check if CONNECTIONS_IFRAME is available before using it
+            if (typeof window.CONNECTIONS_IFRAME !== 'undefined' && window.CONNECTIONS_IFRAME) {
+              startAutoClickLoadMore({ text: "load more", partial: false, interval: 1200 }, window.CONNECTIONS_IFRAME);
+            } else {
+              console.warn('CONNECTIONS_IFRAME not available yet');
+            }
             break
           default:
             break;

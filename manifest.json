@@ -14,7 +14,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.linkedin.com/*"],
-      "js": ["app/content/content.js"],
+      "js": ["app/content/scrape.js", "app/content/attachElements.js", "app/content/attachVisualizer.js", "app/content/content.js"],
       "css": ["app/content/css/content.css"],
       "run_at": "document_end"
     }
@@ -31,3 +31,6 @@
     }
   ]
 }
+
+
+
