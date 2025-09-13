@@ -131,8 +131,22 @@ if (sample_data) {
       return true;
     });
     
-    console.log(`Filtered ${profiles.length} profiles down to ${validProfiles.length} valid profiles`);
-
+    // Deduplicate profiles by ID to prevent duplicate nodes
+    const uniqueProfiles = [];
+    const seenIds = new Set();
+    
+    validProfiles.forEach((p, i) => {
+      const id = toId(p, i);
+      if (!seenIds.has(id)) {
+        seenIds.add(id);
+        uniqueProfiles.push(p);
+      } else {
+        console.log(`Removing duplicate profile with ID: ${id}`);
+      }
+    });
+    
+    console.log(`Deduplicated ${validProfiles.length} profiles down to ${uniqueProfiles.length} unique profiles`);
+    
     // build nodes array - start with "You" node
     const nodes = [
       {
@@ -143,21 +157,36 @@ if (sample_data) {
         school: 'Your School',
         role: 'Your Role',
         profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'
-      },
-      ...validProfiles.map((p, i) => {
-        const node = {
-          id: toId(p, i),
-          name: toName(p),
-          degree: 1, // All scraped profiles are first-degree connections
-          company: toCompany(p),
-          school: toSchool(p),
-          role: toRole(p),
-          profilePic: toProfilePic(p)
-        };
-        console.log(`Processed valid profile ${i}:`, node);
-        return node;
-      })
+      }
     ];
+    
+    // Add unique profiles and ensure no duplicate IDs
+    const usedIds = new Set(['me']); // Start with 'me' ID
+    
+    uniqueProfiles.forEach((p, i) => {
+      let nodeId = toId(p, i);
+      let counter = 1;
+      
+      // Ensure unique ID by adding counter if needed
+      while (usedIds.has(nodeId)) {
+        nodeId = toId(p, i) + counter;
+        counter++;
+      }
+      usedIds.add(nodeId);
+      
+      const node = {
+        id: nodeId,
+        name: toName(p),
+        degree: 1, // All scraped profiles are first-degree connections
+        company: toCompany(p),
+        school: toSchool(p),
+        role: toRole(p),
+        profilePic: toProfilePic(p)
+      };
+      
+      nodes.push(node);
+      console.log(`Processed unique profile ${i}:`, node);
+    });
 
     // build edges array (simplified - in real implementation, this would come from connection data)
     const edges = [];
@@ -313,8 +342,19 @@ let frozenZPositions = new Map(); // Store Z positions when in 2D mode
 let hoveredNode = null;
 let hoveredNodeOriginalScale = null;
 
+// Clear any existing nodes to prevent duplicates
+nodeGroup.clear();
+nodeObjs.clear();
+nodeAnimations.clear();
+
 // Create nodes
 sample.nodes.forEach((n, idx) => {
+  // Check if node already exists to prevent duplicates
+  if (nodeObjs.has(n.id)) {
+    console.warn(`Skipping duplicate node creation for ID: ${n.id}`);
+    return;
+  }
+  
   // Create glowing node group
   const glowNode = new THREE.Group();
   
