@@ -438,7 +438,8 @@ sample.nodes.forEach((n, idx) => {
         opacity: 1.0,
         side: THREE.DoubleSide,
         depthWrite: true,  // Write to depth buffer
-        depthTest: true    // Test depth
+        depthTest: true,   // Test depth
+        alphaTest: 0.1     // Ensure proper alpha testing
       });
 
       core = new THREE.Mesh(nodeGeometry, nodeMaterial);
@@ -516,7 +517,7 @@ sample.nodes.forEach((n, idx) => {
       radius * Math.cos(phi)
     );
   }
-  glowNode.renderOrder = 0; // Render nodes above edges but below profile pictures
+  glowNode.renderOrder = 10; // Render nodes well above edges
   nodeGroup.add(glowNode);
   nodeObjs.set(n.id, glowNode);
 
@@ -598,9 +599,10 @@ sample.edges.forEach(e => {
     transparent: true, 
     opacity: opacity,
     depthTest: true,
-    depthWrite: true
+    depthWrite: true,
+    alphaTest: 0.1
   }));
-  line.renderOrder = -1; // Render edges behind nodes
+  line.renderOrder = -10; // Render edges well behind nodes
   edgeGroup.add(line);
   edgeLines.set(`${e.source}-${e.target}`, line);
 });
@@ -872,7 +874,7 @@ function updateOptimalPath(targetId) {
         cylinder.position.copy(midpoint);
         cylinder.lookAt(t.position);
         cylinder.rotateX(Math.PI / 2);
-        cylinder.renderOrder = 0; // Render cylinders at same level as nodes
+        cylinder.renderOrder = -5; // Render cylinders behind nodes but above regular edges
         
         // Store reference to remove later
         cylinder.userData = { isOptimalEdge: true, edgeKey: `${e.source}-${e.target}` };
