@@ -98,6 +98,41 @@ if (sample_data) {
       return null;
     };
 
+    // Filter out dud profiles (no name, invalid data, etc.)
+    const validProfiles = profiles.filter((p, i) => {
+      const name = toName(p);
+      const id = toId(p, i);
+      const profilePic = toProfilePic(p);
+      
+      // Filter out profiles with no name or invalid names
+      if (!name || name === 'Unknown' || name.trim() === '' || name.length < 2) {
+        console.log(`Filtering out dud profile ${i}: no valid name (${name})`);
+        return false;
+      }
+      
+      // Filter out profiles with invalid IDs
+      if (!id || id.length < 2) {
+        console.log(`Filtering out dud profile ${i}: no valid ID (${id})`);
+        return false;
+      }
+      
+      // Filter out profiles that are just empty objects or have no meaningful data
+      if (!p || typeof p !== 'object' || Object.keys(p).length === 0) {
+        console.log(`Filtering out dud profile ${i}: empty object`);
+        return false;
+      }
+      
+      // Filter out profiles with suspiciously short or repetitive names
+      if (name.length < 3 || name === name.charAt(0).repeat(name.length)) {
+        console.log(`Filtering out dud profile ${i}: suspicious name (${name})`);
+        return false;
+      }
+      
+      return true;
+    });
+    
+    console.log(`Filtered ${profiles.length} profiles down to ${validProfiles.length} valid profiles`);
+
     // build nodes array - start with "You" node
     const nodes = [
       {
@@ -109,7 +144,7 @@ if (sample_data) {
         role: 'Your Role',
         profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'
       },
-      ...profiles.map((p, i) => {
+      ...validProfiles.map((p, i) => {
         const node = {
           id: toId(p, i),
           name: toName(p),
@@ -119,7 +154,7 @@ if (sample_data) {
           role: toRole(p),
           profilePic: toProfilePic(p)
         };
-        console.log(`Processed profile ${i}:`, node);
+        console.log(`Processed valid profile ${i}:`, node);
         return node;
       })
     ];
@@ -128,14 +163,21 @@ if (sample_data) {
     const edges = [];
     // Connect "You" node to scraped profiles
     if (nodes.length > 1) {
-      // Connect "You" node to all scraped profiles
+      // Connect "You" node to all valid scraped profiles
       for (let i = 1; i < nodes.length; i++) {
-        edges.push({
-          source: 'me', // connect to "You" node
-          target: nodes[i].id,
-          weight: Math.random() * 0.5 + 0.3, // random weight between 0.3-0.8
-          reasons: ['Scraped connection']
-        });
+        const targetNode = nodes[i];
+        // Only create edge if target node is valid
+        if (targetNode && targetNode.id && targetNode.name && targetNode.name !== 'Unknown') {
+          edges.push({
+            source: 'me', // connect to "You" node
+            target: targetNode.id,
+            weight: Math.random() * 0.5 + 0.3, // random weight between 0.3-0.8
+            reasons: ['Scraped connection']
+          });
+          console.log(`Created edge: You -> ${targetNode.name} (${targetNode.id})`);
+        } else {
+          console.log(`Skipped creating edge for invalid node:`, targetNode);
+        }
       }
     }
 
