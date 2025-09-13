@@ -109,15 +109,19 @@ if (sample_data) {
         role: 'Your Role',
         profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'
       },
-      ...profiles.map((p, i) => ({
-        id: toId(p, i),
-        name: toName(p),
-        degree: 1, // default degree, could be calculated from connections
-        company: toCompany(p),
-        school: toSchool(p),
-        role: toRole(p),
-        profilePic: toProfilePic(p)
-      }))
+      ...profiles.map((p, i) => {
+        const node = {
+          id: toId(p, i),
+          name: toName(p),
+          degree: 1, // All scraped profiles are first-degree connections
+          company: toCompany(p),
+          school: toSchool(p),
+          role: toRole(p),
+          profilePic: toProfilePic(p)
+        };
+        console.log(`Processed profile ${i}:`, node);
+        return node;
+      })
     ];
 
     // build edges array (simplified - in real implementation, this would come from connection data)
@@ -407,12 +411,22 @@ sample.nodes.forEach((n, idx) => {
   const labelDiv = document.createElement("div");
   labelDiv.className = "tooltip";
   
-  // Format: "Firstname Lastname, Role @ Company"
+  // Format: "Firstname Lastname, Role @ Company" or just "Name" if company/role are Unknown
   let labelText = n.name;
-  if (n.role && n.company) {
-    labelText += `, ${n.role} @ ${n.company}`;
-  } else if (n.company) {
-    labelText += ` @ ${n.company}`;
+  
+  // For "You" node, just show "You"
+  if (n.id === 'me') {
+    labelText = 'You';
+  } else {
+    // For other nodes, show name and company/role if they're not "Unknown"
+    if (n.role && n.role !== 'Unknown' && n.company && n.company !== 'Unknown') {
+      labelText += `, ${n.role} @ ${n.company}`;
+    } else if (n.company && n.company !== 'Unknown') {
+      labelText += ` @ ${n.company}`;
+    } else if (n.role && n.role !== 'Unknown') {
+      labelText += `, ${n.role}`;
+    }
+    // If everything is "Unknown", just show the name
   }
   
   labelDiv.textContent = labelText;
