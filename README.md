@@ -14,10 +14,6 @@ A beautiful 3D network visualization Chrome extension that displays your LinkedI
 - **Search by name or company** to find connections
 - **Optimal path finding** algorithm that shows the best route through your network
 - **Color-coded highlighting**:
-  - 🟣 Purple: "You" (center node)
-  - 🟡 Yellow: Intermediate nodes in the path
-  - 🟠 Orange: Target node (searched person)
-  - 🟢 Green: Optimal path edges
 
 ### 📊 Network Insights
 - **Industry clustering analysis** to identify your largest professional clusters
