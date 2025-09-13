@@ -439,7 +439,13 @@ sample.nodes.forEach((n, idx) => {
         side: THREE.DoubleSide,
         depthWrite: true,  // Write to depth buffer
         depthTest: true,   // Test depth
-        alphaTest: 0.1     // Ensure proper alpha testing
+        alphaTest: 0.5,    // Higher threshold for more solid appearance
+        emissive: 0x000000, // No emissive glow
+        emissiveIntensity: 0, // No emissive intensity
+        roughness: 0.0,    // Make it more solid/smooth
+        metalness: 0.0,    // Non-metallic for solid appearance
+        flatShading: false, // Smooth shading for solid look
+        vertexColors: false // Use material color instead of vertex colors
       });
 
       core = new THREE.Mesh(nodeGeometry, nodeMaterial);
