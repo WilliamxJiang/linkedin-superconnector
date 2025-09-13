@@ -292,12 +292,12 @@ sample.nodes.forEach((n, idx) => {
       const profileTexture = loader.load(n.profilePic);
       console.log(`✅ Profile picture loaded for ${n.name}`);
 
-      // Create a 3D plane with profile picture texture that always faces the camera
-      const planeSize = n.id === 'me' ? 30 : 24;
-      const planeGeometry = new THREE.PlaneGeometry(planeSize, planeSize, 8, 8);
+      // Create a circular node with profile picture texture that always faces the camera
+      const nodeSize = n.id === 'me' ? 30 : 24;
+      const nodeGeometry = new THREE.CircleGeometry(nodeSize/2, 32);
       
-      // Add some depth by displacing vertices slightly
-      const vertices = planeGeometry.attributes.position;
+      // Add some depth by displacing vertices slightly to create a subtle dome
+      const vertices = nodeGeometry.attributes.position;
       for (let i = 0; i < vertices.count; i++) {
         const x = vertices.getX(i);
         const y = vertices.getY(i);
@@ -305,16 +305,16 @@ sample.nodes.forEach((n, idx) => {
         
         // Create a subtle dome effect by displacing Z based on distance from center
         const distanceFromCenter = Math.sqrt(x * x + y * y);
-        const maxDistance = planeSize / 2;
+        const maxDistance = nodeSize / 2;
         const normalizedDistance = Math.min(distanceFromCenter / maxDistance, 1);
         
         // Create a subtle curve - more pronounced at edges
-        const curveHeight = Math.cos(normalizedDistance * Math.PI / 2) * 2;
+        const curveHeight = Math.cos(normalizedDistance * Math.PI / 2) * 1.5;
         vertices.setZ(i, curveHeight);
       }
       vertices.needsUpdate = true;
       
-      const planeMaterial = new THREE.MeshBasicMaterial({
+      const nodeMaterial = new THREE.MeshBasicMaterial({
         map: profileTexture,
         color: 0xffffff, // White to show texture clearly without color distortion
         transparent: false, // Make opaque so it can occlude edges
@@ -324,7 +324,7 @@ sample.nodes.forEach((n, idx) => {
         depthTest: true    // Test depth
       });
 
-      core = new THREE.Mesh(planeGeometry, planeMaterial);
+      core = new THREE.Mesh(nodeGeometry, nodeMaterial);
       core.renderOrder = 1; // Profile picture renders on top of glow effects
       
       // Add multiple glow layers around profile picture for better color effect
@@ -332,8 +332,8 @@ sample.nodes.forEach((n, idx) => {
       const glowOpacities = n.id === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
       
       glowSizes.forEach((glowSize, index) => {
-        // Create a ring geometry around the plane
-        const innerRadius = planeSize/2 + 2; // Start just outside the profile picture
+        // Create a ring geometry around the circular node
+        const innerRadius = nodeSize/2 + 2; // Start just outside the profile picture
         const outerRadius = glowSize/2;
         const glowGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 32);
         const glowMaterial = new THREE.MeshBasicMaterial({
@@ -354,7 +354,7 @@ sample.nodes.forEach((n, idx) => {
         glowNode.add(glow);
       });
       
-      // Make the curved plane always face the camera by updating its rotation in the animation loop
+      // Make the circular node always face the camera by updating its rotation in the animation loop
       core.userData.isBillboard = true;
       
     } catch (error) {
