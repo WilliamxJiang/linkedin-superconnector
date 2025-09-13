@@ -303,7 +303,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color("#0b1020");
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
-camera.position.set(200, 200, 200);
+camera.position.set(300, 300, 300);
 
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -514,7 +514,7 @@ sample.nodes.forEach((n, idx) => {
     // Use spherical coordinates for 3D distribution
     const phi = Math.acos(2 * Math.random() - 1); // Random polar angle (0 to π)
     const theta = 2 * Math.PI * Math.random(); // Random azimuthal angle (0 to 2π)
-    const radius = 80 + Math.random() * 80; // Random radius between 80 and 160
+    const radius = 120 + Math.random() * 120; // Random radius between 120 and 240
     
     // Convert spherical to Cartesian coordinates
     glowNode.position.set(
@@ -1260,8 +1260,8 @@ function animateToLayout(mode) {
   
   // Animate camera position
   const targetCameraPos = mode === '2d' ? 
-    new THREE.Vector3(0, 0, 300) : 
-    new THREE.Vector3(200, 200, 200);
+    new THREE.Vector3(0, 0, 400) : 
+    new THREE.Vector3(300, 300, 300);
   
   const startCameraPos = camera.position.clone();
   const startTarget = controls.target.clone();
