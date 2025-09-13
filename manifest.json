@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "LinkedIn Network Visualizer",
+  "version": "1.0",
+  "description": "Visualize your LinkedIn network connections",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://www.linkedin.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.linkedin.com/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Network Visualizer"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["network.html", "network-three-simple.js", "three-bundle.js", "orbit-controls-bundle.js", "css2d-renderer-bundle.js"],
+      "matches": ["https://www.linkedin.com/*"]
+    }
+  ]
+}
