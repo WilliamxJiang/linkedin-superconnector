@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>LinkedIn Network Visualizer</title>
+  <style>
+    html, body { height:100%; margin:0; background:#0b1020; color:#e8ecf1; font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    #app { position:relative; height:100%; }
+    canvas { display:block; }
+    .hud { position:absolute; top:12px; left:12px; display:flex; gap:8px; background:rgba(14,18,40,0.7); padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); }
+    .hud input, .hud button { background:#101732; color:#e8ecf1; border:1px solid rgba(255,255,255,0.18); padding:6px 10px; border-radius:8px; }
+    .sidebar { position:absolute; right:12px; top:12px; width:260px; background:rgba(14,18,40,0.7); padding:10px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); }
+    .insight { padding:6px; margin:6px 0; border:1px dashed rgba(255,255,255,0.2); border-radius:8px; font-size:13px; }
+    .tooltip { color:#0b1020; background:#e8ecf1; padding:4px 6px; border-radius:6px; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div class="hud">
+    <input id="search" placeholder="Find warm path…" />
+    <button id="highlight">Highlight</button>
+  </div>
+  <div class="sidebar">
+    <h3>Top Insights</h3>
+    <div class="insight" id="largest-cluster">Largest cluster: Loading...</div>
+    <div class="insight" style="border-color: #4da6ff; background: rgba(77,166,255,0.1);">
+      <strong>Edge Strength Legend:</strong><br>
+      <span style="color: #4da6ff;">━━━</span> Strongest (≥0.7)<br>
+      <span style="color: #6b9bd2;">━━</span> Strong (≥0.5)<br>
+      <span style="color: #9aa7c6;">━</span> Regular (&lt;0.5)
+    </div>
+    <div class="insight" style="border-color: #ff6b35; background: rgba(255,107,53,0.1);">
+      <strong>Node Highlight Legend:</strong><br>
+      <span style="color: #ff6b35;">●</span> Target Node<br>
+      <span style="color: #ffd700;">●</span> Intermediate Node<br>
+      <span style="color: #9d4edd;">●</span> You (Purple)
+    </div>
+    <div class="insight optimal-path-info" style="border-color: #00ff88; background: rgba(0,255,136,0.1); display: none;">
+      <strong>Optimal Path:</strong><br>
+      <span class="path-text">Search for a person or company to see the optimal path</span>
+    </div>
+  </div>
+
+  <script type="module" src="network-three-simple.js"></script>
+</body>
+</html>
