@@ -1363,7 +1363,20 @@ function animate(){
     node.children.forEach(child => {
       if (child.userData.isBillboard) {
         // Make both profile pictures and glow effects always face the camera
-        child.lookAt(camera.position);
+        // but keep them right-side up by using a proper billboard rotation
+        const worldPosition = new THREE.Vector3();
+        child.getWorldPosition(worldPosition);
+        
+        // Calculate direction from child to camera
+        const direction = new THREE.Vector3().subVectors(camera.position, worldPosition);
+        direction.y = 0; // Keep Y component at 0 to prevent flipping upside down
+        direction.normalize();
+        
+        // Calculate rotation to face camera while staying upright
+        const angle = Math.atan2(direction.x, direction.z);
+        child.rotation.y = angle;
+        child.rotation.x = 0; // Keep X rotation at 0 to prevent flipping
+        child.rotation.z = 0; // Keep Z rotation at 0 to prevent flipping
       }
     });
   });
