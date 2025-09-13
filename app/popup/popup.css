@@ -1,0 +1,14 @@
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Aeonik', sans-serif;
+}
+
+body {
+    background-color: #FFFFFF;
+    
+    height: 540px;
+    height: 200px;
+    width: 360px;
+}

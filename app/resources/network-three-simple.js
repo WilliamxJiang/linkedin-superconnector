@@ -9,24 +9,111 @@ import { OrbitControls } from './orbit-controls-bundle.js';
 import { CSS2DRenderer, CSS2DObject } from './css2d-renderer-bundle.js';
 
 // Sample data
-const sample = {
-  nodes: [
-    {id:'me', name:'You', degree:1, company:'Ada', school:'UofT'},
-    {id:'a',  name:'Alex Chen', degree:1, company:'Stripe', school:'UofT'},
-    {id:'b',  name:'Bianca Patel', degree:1, company:'Meta', school:'Waterloo'},
-    {id:'d',  name:'Priya N.', degree:2, company:'Google', role:'Manager', school:'MIT'},
-    {id:'e',  name:'Sarah Kim', degree:1, company:'Apple', school:'Stanford'},
-    {id:'f',  name:'Mike Johnson', degree:1, company:'Microsoft', school:'MIT'}
-  ],
-  edges: [
-    {source:'me', target:'a', weight:0.8, reasons:['Direct connection']},
-    {source:'a',  target:'d', weight:0.6, reasons:['Same school']},
-    {source:'me', target:'b', weight:0.4, reasons:['Same region']},
-    {source:'d', target:'e', weight:0.7, reasons:['Tech industry']},
-    {source:'e', target:'f', weight:0.5, reasons:['Tech industry']},
-    {source:'b', target:'f', weight:0.3, reasons:['Tech industry']}
-  ]
-};
+// const sample = {
+//   nodes: [
+//     {id:'me', name:'You', degree:1, company:'Ada', school:'UofT'},
+//     {id:'a',  name:'Alex Chen', degree:1, company:'Stripe', school:'UofT'},
+//     {id:'b',  name:'Bianca Patel', degree:1, company:'Meta', school:'Waterloo'},
+//     {id:'d',  name:'Priya N.', degree:2, company:'Google', role:'Manager', school:'MIT'},
+//     {id:'e',  name:'Sarah Kim', degree:1, company:'Apple', school:'Stanford'},
+//     {id:'f',  name:'Mike Johnson', degree:1, company:'Microsoft', school:'MIT'}
+//   ],
+//   edges: [
+//     {source:'me', target:'a', weight:0.8, reasons:['Direct connection']},
+//     {source:'a',  target:'d', weight:0.6, reasons:['Same school']},
+//     {source:'me', target:'b', weight:0.4, reasons:['Same region']},
+//     {source:'d', target:'e', weight:0.7, reasons:['Tech industry']},
+//     {source:'e', target:'f', weight:0.5, reasons:['Tech industry']},
+//     {source:'b', target:'f', weight:0.3, reasons:['Tech industry']}
+//   ]
+// };
+
+
+// const sample_data = localStorage.getItem('lsc-latest-profiles');
+const sample_data = await chrome.storage.local.get('lsc-latest-profiles').then(res => res['lsc-latest-profiles']);
+let graph;
+console.log('sample_data')
+console.log(sample_data)
+if (sample_data) {
+  try {
+    // const parsed = JSON.parse(sample_data) // expected: array of profile objects
+    const parsed =sample_data
+    // normalize to array
+    const profiles = Array.isArray(parsed) ? parsed : (parsed?.data ?? []);
+    if (!Array.isArray(profiles)) throw new Error('Profiles JSON is not an array');
+
+    // helper: stable id from profile_url or index
+    const toId = (p, i) => {
+      if (typeof p?.profile_url === 'string' && p.profile_url.trim()) {
+        // take last path segment, strip non-alphanumerics, fallback to base64 slice
+        const seg = p.profile_url.split('/').filter(Boolean).pop() || `n${i}`;
+        return seg.replace(/[^a-zA-Z0-9_-]/g, '') || `n${i}`;
+      }
+      return `n${i}`;
+    };
+
+    // dedupe by profile_url if present
+    const seen = new Set();
+    const unique = [];
+    for (const p of profiles) {
+      const key = (p?.profile_url || p?.name || '') + '|' + (p?.img || '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(p);
+    }
+
+    const nodes = [
+      { id: 'me', name: 'You', degree: 1 } // minimal root node
+    ];
+
+    const edges = [];
+
+    unique.forEach((p, i) => {
+      const id = toId(p, i);
+
+      nodes.push({
+        id,
+        name: p?.name || 'Unknown',
+        degree: 1,
+        // keep useful attrs (company/school omitted as requested)
+        img: p?.img ?? null,
+        description: p?.description ?? null,
+        location: p?.location ?? null,
+        profile_url: p?.profile_url ?? null
+      });
+
+      edges.push({
+        source: id,       // from the person
+        target: 'me',     // ...to 'me'
+        weight: 1,
+        reasons: ['Imported connection']
+      });
+    });
+
+    graph = { nodes, edges };
+  } catch (e) {
+    console.warn('Failed to parse stored profile data, using sample data.', e);
+  }
+}
+
+// Fallback sample if needed:
+if (!graph) {
+  graph = {
+    nodes: [
+      { id: 'me', name: 'You', degree: 1 },
+      { id: 'crystal-ding', name: 'Crystal Ding', degree: 1, img: 'https://media.licdn.com/dms/image/v2/D5603AQFLFFo3TLOW6g/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1695423773398?e=1760572800&v=beta&t=Y0g3_qBd8etFXM5IMcfMsH0kwbeLIhUua5FLBEOJRGc', description: 'A cat person who loves video games', location: null, profile_url: 'https://www.linkedin.com/in/crystal-ding/' }
+    ],
+    edges: [
+      { source: 'crystal-ding', target: 'me', weight: 1, reasons: ['Imported connection'] }
+    ]
+  };
+}
+
+// use `graph` downstream
+console.log('graph', graph);
+
+const sample = graph;
+
 
 // Scene setup
 const app = document.getElementById("app");

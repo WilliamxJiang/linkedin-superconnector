@@ -1,32 +1,52 @@
 {
   "manifest_version": 3,
-  "name": "LinkedIn Network Visualizer",
-  "version": "1.0",
-  "description": "Visualize your LinkedIn network connections",
-  "permissions": [
-    "activeTab",
-    "storage",
-    "scripting"
-  ],
-  "host_permissions": [
-    "https://www.linkedin.com/*"
-  ],
-  "content_scripts": [
+  "name": "0000 - Linkedin Map",
+  "description": "Linkedin",
+  "version": "0.1.0",
+
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "web_accessible_resources": [
     {
-      "matches": ["https://www.linkedin.com/*"],
-      "js": ["content.js"],
-      "css": ["styles.css"],
-      "run_at": "document_end"
+      "resources": [
+        "assets/fonts/*.otf",
+        "assets/images/*",
+        "app/*",
+        "auth/*"
+      ],
+      "matches": ["<all_urls>"]
     }
   ],
   "action": {
-    "default_popup": "popup.html",
-    "default_title": "Network Visualizer"
+    "default_popup": "./app/popup/popup.html",
+    "default_icon": {
+      "16": "/assets/images/icon16.png"
+    }
   },
-  "web_accessible_resources": [
+  "background": {
+    "service_worker": "./background/background.js",
+    "type": "module"
+  },
+  "icons": {
+    "16": "/assets/images/icon16.png",
+    "48": "/assets/images/icon16.png",
+    "128": "/assets/images/icon16.png"
+  },
+  "content_scripts": [
     {
-      "resources": ["network.html", "network-three-simple.js", "three-bundle.js", "orbit-controls-bundle.js", "css2d-renderer-bundle.js"],
-      "matches": ["https://www.linkedin.com/*"]
+      "matches": ["<all_urls>"],
+      "js": [
+            "./app/content/scrape.js",
+            "./app/content/attachVisualizer.js",
+            "./app/content/attachElements.js",
+            "./app/content/content.js",
+            "./app/content/loadfonts.js"
+      ],
+      "css": [
+        "./app/content/css/content.css"
+      ],
+      "run_at": "document_end",
+      "all_frames": false
     }
   ]
 }

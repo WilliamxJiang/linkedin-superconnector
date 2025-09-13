@@ -100,7 +100,7 @@ function openNetworkVisualizer() {
     
     // Create iframe
     const iframe = document.createElement('iframe');
-    iframe.src = chrome.runtime.getURL('network.html');
+    iframe.src = chrome.runtime.getURL('app/resources/network.html');
     iframe.style.cssText = `
       width: 90vw;
       height: 90vh;
