@@ -449,7 +449,11 @@ sample.nodes.forEach((n, idx) => {
       });
 
       core = new THREE.Mesh(nodeGeometry, nodeMaterial);
-      core.renderOrder = 2; // Profile picture renders on top of everything
+      core.renderOrder = 100; // Profile picture renders on top of everything
+      core.material.depthWrite = true;
+      core.material.depthTest = true;
+      core.material.transparent = false; // Ensure solid occlusion
+      core.material.opacity = 1.0; // Ensure full opacity
       
       // Add multiple glow layers around profile picture for better color effect
       const glowSizes = n.id === 'me' ? [40, 35, 30] : [32, 28, 24];
@@ -611,6 +615,8 @@ sample.edges.forEach(e => {
   line.renderOrder = -10; // Render edges well behind nodes
   line.material.depthWrite = true;
   line.material.depthTest = true;
+  line.material.transparent = true; // Keep edges transparent
+  line.material.opacity = 0.6; // Ensure proper opacity
   edgeGroup.add(line);
   edgeLines.set(`${e.source}-${e.target}`, line);
 });
@@ -1436,6 +1442,15 @@ function animate(){
         
         // Apply the rotation to make it face the camera directly
         child.quaternion.copy(quaternion);
+        
+        // Ensure profile pictures always render on top and occlude edges
+        child.renderOrder = 100; // Very high render order
+        if (child.material) {
+          child.material.depthWrite = true;
+          child.material.depthTest = true;
+          child.material.transparent = false; // Ensure solid occlusion
+          child.material.opacity = 1.0; // Ensure full opacity
+        }
       }
     });
   });
