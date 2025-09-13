@@ -163,22 +163,53 @@ if (sample_data) {
     const edges = [];
     // Connect "You" node to scraped profiles
     if (nodes.length > 1) {
+      console.log(`Creating edges for ${nodes.length - 1} scraped profiles...`);
+      
       // Connect "You" node to all valid scraped profiles
       for (let i = 1; i < nodes.length; i++) {
         const targetNode = nodes[i];
-        // Only create edge if target node is valid
-        if (targetNode && targetNode.id && targetNode.name && targetNode.name !== 'Unknown') {
+        console.log(`Processing node ${i}:`, targetNode);
+        
+        // Create edge for ALL scraped profiles (they're already filtered)
+        if (targetNode && targetNode.id) {
           edges.push({
             source: 'me', // connect to "You" node
             target: targetNode.id,
             weight: Math.random() * 0.5 + 0.3, // random weight between 0.3-0.8
             reasons: ['Scraped connection']
           });
-          console.log(`Created edge: You -> ${targetNode.name} (${targetNode.id})`);
+          console.log(`✅ Created edge: You -> ${targetNode.name || 'Unknown'} (${targetNode.id})`);
         } else {
-          console.log(`Skipped creating edge for invalid node:`, targetNode);
+          console.log(`❌ Skipped creating edge for invalid node:`, targetNode);
         }
       }
+      
+      console.log(`Total edges created: ${edges.length}`);
+    }
+
+    // Safety check: ensure all non-"me" nodes have edges
+    const connectedNodeIds = new Set();
+    edges.forEach(edge => {
+      connectedNodeIds.add(edge.source);
+      connectedNodeIds.add(edge.target);
+    });
+    
+    const orphanedNodes = nodes.filter(node => 
+      node.id !== 'me' && !connectedNodeIds.has(node.id)
+    );
+    
+    if (orphanedNodes.length > 0) {
+      console.warn(`Found ${orphanedNodes.length} orphaned nodes:`, orphanedNodes);
+      // Add edges for orphaned nodes
+      orphanedNodes.forEach(node => {
+        edges.push({
+          source: 'me',
+          target: node.id,
+          weight: 0.5,
+          reasons: ['Orphaned node connection']
+        });
+        console.log(`🔗 Added missing edge for orphaned node: You -> ${node.name} (${node.id})`);
+      });
     }
 
     graph = { nodes, edges };
