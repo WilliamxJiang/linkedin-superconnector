@@ -603,6 +603,8 @@ sample.edges.forEach(e => {
     alphaTest: 0.1
   }));
   line.renderOrder = -10; // Render edges well behind nodes
+  line.material.depthWrite = true;
+  line.material.depthTest = true;
   edgeGroup.add(line);
   edgeLines.set(`${e.source}-${e.target}`, line);
 });
@@ -1140,6 +1142,7 @@ function switchTo3D() {
   is3DMode = true;
   updateToggleButtons();
   updateControlsForMode();
+  ensureRenderOrder();
   animateToLayout('3d');
 }
 
@@ -1149,6 +1152,7 @@ function switchTo2D() {
   is3DMode = false;
   updateToggleButtons();
   updateControlsForMode();
+  ensureRenderOrder();
   animateToLayout('2d');
 }
 
@@ -1175,6 +1179,40 @@ function updateControlsForMode() {
     controls.minPolarAngle = Math.PI/2 - 0.1; // Lock to top-down view
     controls.maxPolarAngle = Math.PI/2 + 0.1;
   }
+}
+
+// Ensure proper render order for both 2D and 3D modes
+function ensureRenderOrder() {
+  // Ensure all profile pictures are on top
+  nodeObjs.forEach((node, nodeId) => {
+    node.children.forEach(child => {
+      if (child.userData.isBillboard && child.material) {
+        child.renderOrder = 100; // Very high render order
+        child.material.depthWrite = true;
+        child.material.depthTest = true;
+      }
+    });
+  });
+  
+  // Ensure all edges are behind nodes
+  edgeGroup.children.forEach(edge => {
+    edge.renderOrder = -10;
+    if (edge.material) {
+      edge.material.depthWrite = true;
+      edge.material.depthTest = true;
+    }
+  });
+  
+  // Ensure optimal path cylinders are behind nodes but above edges
+  edgeGroup.children.forEach(cylinder => {
+    if (cylinder.userData && cylinder.userData.isOptimalEdge) {
+      cylinder.renderOrder = -5;
+      if (cylinder.material) {
+        cylinder.material.depthWrite = true;
+        cylinder.material.depthTest = true;
+      }
+    }
+  });
 }
 
 // Animate nodes to new layout
@@ -1344,6 +1382,16 @@ function animate(){
     if (!is3DMode) {
       node.position.z = 0;
     }
+    
+    // Ensure profile pictures always render on top in both 2D and 3D modes
+    node.children.forEach(child => {
+      if (child.userData.isBillboard && child.material) {
+        // Force profile pictures to always be on top
+        child.renderOrder = 100; // Very high render order
+        child.material.depthWrite = true;
+        child.material.depthTest = true;
+      }
+    });
 
     const s = 1 + Math.sin(t*a.scaleFrequency + a.timeOffset)*a.scaleAmplitude;
     node.scale.setScalar(s);
