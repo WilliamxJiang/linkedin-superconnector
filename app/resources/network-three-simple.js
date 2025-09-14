@@ -1252,23 +1252,37 @@ function showOnlyOptimalPathNodes() {
     return;
   }
   
+  // Get all nodes that should be visible (You + optimal path nodes)
+  const visibleNodeIds = new Set(['me', ...currentOptimalPath.path]);
+  
   // Hide all nodes first
   nodeObjs.forEach((node, nodeId) => {
-    if (nodeId !== 'me' && !currentOptimalPath.path.includes(nodeId)) {
+    if (!visibleNodeIds.has(nodeId)) {
       node.visible = false;
       hiddenNodes.add(nodeId);
-    }
-  });
-  
-  // Show only the "You" node and optimal path nodes
-  nodeObjs.forEach((node, nodeId) => {
-    if (nodeId === 'me' || currentOptimalPath.path.includes(nodeId)) {
+    } else {
       node.visible = true;
       hiddenNodes.delete(nodeId);
     }
   });
   
-  console.log(`Path-only mode: Showing ${currentOptimalPath.path.length + 1} nodes (You + path nodes)`);
+  // Hide all edges that don't connect visible nodes
+  edgeLines.forEach((line, edgeKey) => {
+    const [sourceId, targetId] = edgeKey.split('-');
+    const shouldShowEdge = visibleNodeIds.has(sourceId) && visibleNodeIds.has(targetId);
+    line.visible = shouldShowEdge;
+  });
+  
+  // Hide all cylinders (optimal path edges) that don't connect visible nodes
+  edgeGroup.children.forEach(child => {
+    if (child.userData && child.userData.isOptimalEdge) {
+      const [sourceId, targetId] = child.userData.edgeKey.split('-');
+      const shouldShowEdge = visibleNodeIds.has(sourceId) && visibleNodeIds.has(targetId);
+      child.visible = shouldShowEdge;
+    }
+  });
+  
+  console.log(`Path-only mode: Showing ${visibleNodeIds.size} nodes and their connecting edges`);
 }
 
 function showAllNodes() {
@@ -1277,8 +1291,20 @@ function showAllNodes() {
     node.visible = true;
   });
   
+  // Show all edges
+  edgeLines.forEach((line, edgeKey) => {
+    line.visible = true;
+  });
+  
+  // Show all cylinders (optimal path edges)
+  edgeGroup.children.forEach(child => {
+    if (child.userData && child.userData.isOptimalEdge) {
+      child.visible = true;
+    }
+  });
+  
   hiddenNodes.clear();
-  console.log('Show all mode: Displaying all nodes');
+  console.log('Show all mode: Displaying all nodes and edges');
 }
 
 // Switch to 3D mode
