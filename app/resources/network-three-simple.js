@@ -916,6 +916,8 @@ function highlightNode(nodeId, highlightType = 'none') {
         } else {
           child.material.color.setHex(0xFF7043); // Vivid orange
         }
+        // Mark as highlighted to prevent animation loop from overriding
+        child.userData.isHighlighted = true;
       }
     });
     
@@ -952,6 +954,8 @@ function highlightNode(nodeId, highlightType = 'none') {
         } else {
           child.material.color.setHex(0xffd700); // Gold/yellow
         }
+        // Mark as highlighted to prevent animation loop from overriding
+        child.userData.isHighlighted = true;
       }
     });
     
@@ -983,6 +987,8 @@ function highlightNode(nodeId, highlightType = 'none') {
         } else {
           child.material.color.setHex(originalColor);
         }
+        // Clear highlighted flag to allow animation loop to work again
+        child.userData.isHighlighted = false;
       }
     });
     
