@@ -897,7 +897,7 @@ function highlightNode(nodeId, highlightType = 'none') {
   const node = nodeObjs.get(nodeId);
   if (!node) return;
   
-  const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x000000; // Black for testing
+  const originalColor = nodeId === 'me' ? 0x4CAF50 : 0xFF0000; // Red for testing
   
   if (highlightType === 'target') {
     // Target node - vivid orange
