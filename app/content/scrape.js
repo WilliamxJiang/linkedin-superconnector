@@ -306,7 +306,7 @@ function findButtonInside(el) {
 
 // ---- repeatedly click the load button every 5 seconds, INSIDE a given iframe ----
 function startAutoClickLoadMore(
-  { text = "load more", partial = false, intervalMs = 5000 } = {},
+  { text = "load more", partial = false, intervalMs = 5000, limit = 100 } = {},
   iframe // HTMLIFrameElement
 ) {
   // Validate iframe + same-origin access
@@ -415,6 +415,12 @@ function startAutoClickLoadMore(
             // localStorage.setItem('lsc-latest-profiles', JSON.stringify(profiles || []));
             chrome.storage.local.set({ 'lsc-latest-profiles': profiles || [] });
 
+            if (limit && Array.isArray(profiles) && profiles.length >= limit) {
+                console.log(`Reached limit of ${limit} profiles, stopping auto-click.`);
+                iframeWin.clearInterval(intervalId);
+                return;
+            }
+            
             console.log(await chrome.storage.local.get('lsc-latest-profiles'));
           } catch (e) {
             console.warn("scrapeProfiles threw inside iframe:", e);
@@ -438,3 +444,25 @@ function startAutoClickLoadMore(
   return intervalId; // for manual clear if needed
 }
 
+function stopAutoClickLoadMore(intervalId, iframe) {
+    if (!intervalId || !iframe) return;
+    let iframeWin;
+    try {
+        iframeWin = iframe.contentWindow;
+    } catch (e) {
+        console.warn("stopAutoClickLoadMore: cannot access iframe (cross-origin?)", e);
+        return;
+    }
+
+    if (!iframeWin) return;
+    try {
+        iframeWin.clearInterval(intervalId);
+    } catch (e) {
+        console.warn("stopAutoClickLoadMore: failed to clear interval in iframe", e);
+    }
+
+    console.log("Auto-click load more stopped.");
+
+    intervalId = null;
+    iframe = null;
+}

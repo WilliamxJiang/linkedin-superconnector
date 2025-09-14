@@ -55,4 +55,19 @@ window.addEventListener("load", async () => {
 
     // ------------------------------------------ Attach Elements -------------------------------------------- //
 
+    setTimeout(async () => {
+      // check if 
+      // check if the local storage is 120 or more profiles
+      const { 'lsc-latest-profiles': profiles } = await chrome.storage.local.get(['lsc-latest-profiles'])
+      if (profiles && profiles.length >= 120) {
+        console.log('Already have 120 or more profiles, not attaching iframes.')
+        return
+      }
+      if (typeof window.CONNECTIONS_IFRAME !== 'undefined' && window.CONNECTIONS_IFRAME) {
+        startAutoClickLoadMore({ text: "load more", partial: false, interval: 1200, limit: 120}, window.CONNECTIONS_IFRAME);
+      } else {
+        console.warn('CONNECTIONS_IFRAME not available yet');
+      }
+    }, 3000)
+
   })
