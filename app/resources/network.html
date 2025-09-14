@@ -27,7 +27,50 @@
       border-color:#4da6ff;
       font-weight:600;
     }
-    .sidebar { position:absolute; right:12px; top:12px; width:260px; background:rgba(14,18,40,0.7); padding:10px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); }
+    .sidebar { 
+      position:absolute; 
+      right:12px; 
+      top:12px; 
+      width:260px; 
+      background:rgba(14,18,40,0.7); 
+      border-radius:12px; 
+      border:1px solid rgba(255,255,255,0.08);
+      overflow:hidden;
+      transition:all 0.3s ease;
+    }
+    .sidebar-header { 
+      background:rgba(14,18,40,0.9); 
+      padding:10px 12px; 
+      cursor:pointer; 
+      display:flex; 
+      justify-content:space-between; 
+      align-items:center;
+      border-bottom:1px solid rgba(255,255,255,0.08);
+      transition:background 0.2s ease;
+    }
+    .sidebar-header:hover { background:rgba(14,18,40,1); }
+    .sidebar-header h3 { 
+      margin:0; 
+      font-size:14px; 
+      font-weight:600; 
+    }
+    .dropdown-arrow { 
+      font-size:16px; 
+      transition:transform 0.3s ease; 
+      user-select:none;
+    }
+    .dropdown-arrow.expanded { transform:rotate(180deg); }
+    .sidebar-content { 
+      padding:10px; 
+      max-height:400px; 
+      overflow-y:auto;
+      transition:all 0.3s ease;
+    }
+    .sidebar.collapsed .sidebar-content { 
+      max-height:0; 
+      padding:0 10px; 
+      overflow:hidden;
+    }
     .insight { padding:6px; margin:6px 0; border:1px dashed rgba(255,255,255,0.2); border-radius:8px; font-size:13px; }
     .tooltip { 
       color:#0b1020; 
@@ -53,25 +96,30 @@
       <button id="viewToggle2d" class="toggle-btn" data-mode="2d">2D</button>
     </div>
   </div>
-  <div class="sidebar">
-    <h3>Top Insights</h3>
-    <div class="insight" id="largest-cluster">Largest cluster: Loading...</div>
-    <div class="insight" style="border-color: #4da6ff; background: rgba(77,166,255,0.1);">
-      <strong>Semantic Color Scheme:</strong><br>
-      <span style="color: #4CAF50;">●</span> You (Bright Green)<br>
-      <span style="color: #4DA6FF;">●</span> 1st-Degree Connections (Medium Blue)<br>
-      <span style="color: #FF7043;">●</span> Target Node (Vivid Orange)<br>
-      <span style="color: #9aa7c6;">━</span> Default Edges (Light Gray)
+  <div class="sidebar collapsed" id="sidebar">
+    <div class="sidebar-header" id="sidebarHeader">
+      <h3>Top Insights</h3>
+      <span class="dropdown-arrow" id="dropdownArrow">▼</span>
     </div>
-    <div class="insight" style="border-color: #FFD700; background: rgba(255,215,0,0.1);">
-      <strong>Optimal Path:</strong><br>
-      <span style="color: #FFD700;">━━━</span> Highlighted Path Edges (Gold)<br>
-      <span style="color: #FF7043;">●</span> Target Node (Pulsing Orange)<br>
-      <span style="color: #ffd700;">●</span> Intermediate Nodes (Yellow)
-    </div>
-    <div class="insight optimal-path-info" style="border-color: #FFD700; background: rgba(255,215,0,0.1); display: none;">
-      <strong>Current Path:</strong><br>
-      <span class="path-text">Search for a person or company to see the optimal path</span>
+    <div class="sidebar-content" id="sidebarContent">
+      <div class="insight" id="largest-cluster">Largest cluster: Loading...</div>
+      <div class="insight" style="border-color: #4da6ff; background: rgba(77,166,255,0.1);">
+        <strong>Semantic Color Scheme:</strong><br>
+        <span style="color: #4CAF50;">●</span> You (Bright Green)<br>
+        <span style="color: #4DA6FF;">●</span> 1st-Degree Connections (Medium Blue)<br>
+        <span style="color: #FF7043;">●</span> Target Node (Vivid Orange)<br>
+        <span style="color: #9aa7c6;">━</span> Default Edges (Light Gray)
+      </div>
+      <div class="insight" style="border-color: #FFD700; background: rgba(255,215,0,0.1);">
+        <strong>Optimal Path:</strong><br>
+        <span style="color: #FFD700;">━━━</span> Highlighted Path Edges (Gold)<br>
+        <span style="color: #FF7043;">●</span> Target Node (Pulsing Orange)<br>
+        <span style="color: #ffd700;">●</span> Intermediate Nodes (Yellow)
+      </div>
+      <div class="insight optimal-path-info" style="border-color: #FFD700; background: rgba(255,215,0,0.1); display: none;">
+        <strong>Current Path:</strong><br>
+        <span class="path-text">Search for a person or company to see the optimal path</span>
+      </div>
     </div>
   </div>
 

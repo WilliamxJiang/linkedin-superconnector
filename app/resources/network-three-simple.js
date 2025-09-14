@@ -1198,6 +1198,26 @@ const viewToggle2D = document.getElementById('viewToggle2d');
 viewToggle3D.addEventListener('click', () => switchTo3D());
 viewToggle2D.addEventListener('click', () => switchTo2D());
 
+// Collapsible sidebar functionality
+const sidebar = document.getElementById('sidebar');
+const sidebarHeader = document.getElementById('sidebarHeader');
+const dropdownArrow = document.getElementById('dropdownArrow');
+
+let isSidebarCollapsed = true; // Start collapsed
+
+// Toggle sidebar collapse/expand
+sidebarHeader.addEventListener('click', () => {
+  isSidebarCollapsed = !isSidebarCollapsed;
+  
+  if (isSidebarCollapsed) {
+    sidebar.classList.add('collapsed');
+    dropdownArrow.classList.remove('expanded');
+  } else {
+    sidebar.classList.remove('collapsed');
+    dropdownArrow.classList.add('expanded');
+  }
+});
+
 // Switch to 3D mode
 function switchTo3D() {
   if (is3DMode) return;
