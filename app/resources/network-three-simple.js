@@ -1625,6 +1625,34 @@ function animate(){
       }
     });
   }
+  
+  // Slow clockwise rotation of the entire network around the "You" node
+  if (is3DMode) {
+    // Rotate all nodes around the Y-axis (vertical axis) with "You" node as center
+    const youNode = nodeObjs.get('me');
+    if (youNode) {
+      const youPosition = youNode.position.clone();
+      
+      // Debug: Log rotation every 100 frames to avoid spam
+      if (Math.floor(t * 60) % 100 === 0) {
+        console.log(`Rotating network: is3DMode=${is3DMode}, youNode exists=${!!youNode}, speed=${networkRotationSpeed}`);
+      }
+      
+      nodeObjs.forEach((node, nodeId) => {
+        if (nodeId !== 'me' && nodeId !== hoveredNode?.id) { // Don't rotate the "You" node or hovered node
+          // Get relative position from "You" node
+          const relativePos = node.position.clone().sub(youPosition);
+          
+          // Apply rotation around Y-axis
+          const rotationMatrix = new THREE.Matrix4().makeRotationY(networkRotationSpeed);
+          relativePos.applyMatrix4(rotationMatrix);
+          
+          // Set new position relative to "You" node
+          node.position.copy(youPosition.clone().add(relativePos));
+        }
+      });
+    }
+  }
 
   // Pulse highlighted nodes
   highlightedNodes.forEach(nodeId => {
