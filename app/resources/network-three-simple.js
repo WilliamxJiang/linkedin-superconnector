@@ -484,6 +484,11 @@ sample.nodes.forEach((n, idx) => {
           fog: false // Disable fog for cleaner glow
         });
         
+        // Debug logging for glow color
+        if (n.id !== 'me') {
+          console.log(`Creating glow for node ${n.id}: color=${nodeColor.toString(16)}, opacity=${glowOpacities[index]}`);
+        }
+        
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
         glow.position.z = -0.1 - (index * 0.05); // Slightly behind the profile picture
         glow.renderOrder = 1; // Glow renders behind profile picture but above edges
@@ -2048,6 +2053,9 @@ function animate(){
         const opacityPulse = 0.7 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
         child.scale.setScalar(glowPulse);
         if (child.material) {
+          // Ensure correct color is maintained
+          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
+          child.material.color.setHex(originalColor);
           child.material.opacity = Math.min(opacityPulse, 1.0);
           // Mark this glow as being animated so other code doesn't override it
           child.userData.isPulsing = true;
