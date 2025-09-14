@@ -8,6 +8,102 @@ import * as THREE from './three-bundle.js';
 import { OrbitControls } from './orbit-controls-bundle.js';
 import { CSS2DRenderer, CSS2DObject } from './css2d-renderer-bundle.js';
 
+/* ================================
+ * NATURAL LANGUAGE ROUTER PROMPT
+ * ================================
+ * The LLM must always return STRICT JSON with one of two actions:
+ *  - "path": find the optimal path to a person already in the graph
+ *  - "search": do a LinkedIn search for relevant people
+ *
+ * Fields:
+ * {
+ *   "action": "path" | "search",
+ *   "reason": string,
+ *   "target_name": string | null,       // for "path"
+ *   "target_company": string | null,    // optional hints for "path"
+ *   "keywords": string[],               // for "search"
+ *   "query": string                     // normalized user request
+ * }
+ *
+ * The model will receive a list of known people (current nodes) as context.
+ */
+const ROUTER_SYSTEM_PROMPT = `
+You are a routing assistant embedded in a LinkedIn graph tool.
+
+Your job: choose ONE action for each user query.
+- Use "path" when the user likely wants an introduction, warm intro, how to reach a specific person, or a route via connections already shown in the current graph.
+- Use "search" when the user asks to find people broadly (e.g., "PMs at Stripe", "AI safety researchers in SF"), or when the target is probably NOT in the graph.
+
+Return STRICT JSON ONLY. NO prose, NO code fences.
+
+JSON schema:
+{
+  "action": "path" | "search",
+  "reason": string,
+  "target_name": string | null,
+  "target_company": string | null,
+  "keywords": string[],   // for "search"
+  "query": string
+}
+
+Rules:
+- If the user asks about a named person (e.g., "Sundar Pichai", "Jane Doe"), prefer "path".
+- If the user asks to "find", "who", "show me", "list", job titles, or broad criteria, prefer "search".
+- If unsure whether the person exists in the current graph, still decide. Do NOT return ambiguity.
+- Always output valid JSON with BOTH keys for the chosen action AND placeholders (null/[] as appropriate) for the other fields.
+`.trim();
+
+/* Helper to build a user message with current context */
+function buildRouterUserMessage(userQuery, knownPeople) {
+  const knownLines = knownPeople.map(p => `- ${p.name}${p.description ? ' | ' + p.description : ''}`).join('\n');
+  return `
+User query:
+"${userQuery}"
+
+Known people currently in the graph (may be partial):
+${knownLines}
+
+Decide the single best action and return STRICT JSON only.
+`.trim();
+}
+
+/* Robust JSON extraction (handles code fences or stray text) */
+function safeJsonFromText(text) {
+  try {
+    // First try direct parse
+    return JSON.parse(text);
+  } catch {
+    // Try extracting the first {...} block
+    const match = text.match(/\{[\s\S]*\}$/m);
+    if (match) {
+      try { return JSON.parse(match[0]); } catch {}
+    }
+    // Try code-fence cleanup
+    const fence = text.replace(/```(?:json)?/g, '').trim();
+    try { return JSON.parse(fence); } catch {}
+  }
+  return null;
+}
+
+/* Dummy LinkedIn search (placeholder for your real integration) */
+function linkedinSearchDummy({ keywords, query }) {
+  console.log('[LinkedIn Search Dummy] Query:', query, 'Keywords:', keywords);
+  toast(`Searching LinkedIn for: ${keywords?.join(', ') || query}`);
+  // TODO: Replace with your actual LinkedIn search logic.
+}
+
+/* A tiny toast to show actions to the user */
+function toast(msg, ms = 2200) {
+  let el = document.createElement('div');
+  el.textContent = msg;
+  el.style.cssText = `
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: rgba(15,20,35,.9); color: #e6ecff; padding: 10px 14px;
+    border-radius: 8px; font-size: 13px; z-index: 999999; box-shadow: 0 6px 24px rgba(0,0,0,.35);
+  `;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
 
 // Scraper data integration with profile picture support
 const sample_data = await chrome.storage.local.get('lsc-latest-profiles').then(res => res['lsc-latest-profiles']);
@@ -22,7 +118,7 @@ if (sample_data && sample_data.length > 0) {
 if (sample_data) {
   try {
     // const parsed = JSON.parse(sample_data) // expected: array of profile objects
-    const parsed =sample_data
+    const parsed = sample_data;
     // normalize to array
     const profiles = Array.isArray(parsed) ? parsed : (parsed?.data ?? []);
     if (!Array.isArray(profiles)) throw new Error('Profiles JSON is not an array');
@@ -30,7 +126,6 @@ if (sample_data) {
     // helper: stable id from profile_url or index
     const toId = (p, i) => {
       if (typeof p?.profile_url === 'string' && p.profile_url.trim()) {
-        // take last path segment, strip non-alphanumerics, fallback to base64 slice
         const seg = p.profile_url.split('/').filter(Boolean).pop() || `n${i}`;
         return seg.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || `n${i}`;
       }
@@ -50,25 +145,20 @@ if (sample_data) {
     const toCompany = (p) => {
       if (p?.current_company?.trim()) return p.current_company.trim();
       if (p?.company?.trim()) return p.company.trim();
-      // Try to extract company from description (scraper format)
       if (p?.description?.trim()) {
         const desc = p.description.trim();
-        // Look for patterns like "Software Engineer at Google" or "Manager @ Microsoft"
         const atMatch = desc.match(/(?:at|@)\s*([^,•]+)/i);
         if (atMatch) return atMatch[1].trim();
-        // Look for patterns like "Google • Software Engineer"
         const bulletMatch = desc.match(/^([^•]+)\s*•/);
         if (bulletMatch) return bulletMatch[1].trim();
       }
       return 'Unknown';
     };
 
-    // helper: extract school from education or location
     const toSchool = (p) => {
       if (Array.isArray(p?.education) && p.education.length > 0) {
         return p.education[0]?.school?.trim() || 'Unknown';
       }
-      // Try to extract school from description
       if (p?.description?.trim()) {
         const desc = p.description.trim();
         const schoolMatch = desc.match(/(?:university|college|institute|school)\s+of\s+([^,•]+)/i);
@@ -77,21 +167,21 @@ if (sample_data) {
       return 'Unknown';
     };
 
-    // helper: extract role from current_title, title, or scraper description
     const toRole = (p) => {
       if (p?.current_title?.trim()) return p.current_title.trim();
       if (p?.title?.trim()) return p.title.trim();
-      // Try to extract role from description (scraper format)
       if (p?.description?.trim()) {
         const desc = p.description.trim();
-        // Look for patterns like "Software Engineer at Google"
         const roleMatch = desc.match(/^([^@•]+?)(?:\s+at\s+|\s*•)/i);
         if (roleMatch) return roleMatch[1].trim();
       }
       return 'Unknown';
     };
 
-    // helper: extract profile picture URL from various possible fields
+    const toDescription = (p) => {
+      if (p?.description?.trim()) return p.description.trim();
+    }
+
     const toProfilePic = (p) => {
       if (p?.profile_picture_url?.trim()) return p.profile_picture_url.trim();
       if (p?.profile_pic?.trim()) return p.profile_pic.trim();
@@ -103,39 +193,28 @@ if (sample_data) {
     const validProfiles = profiles.filter((p, i) => {
       const name = toName(p);
       const id = toId(p, i);
-      const profilePic = toProfilePic(p);
-      
-      // Filter out profiles with no name or invalid names
       if (!name || name === 'Unknown' || name.trim() === '' || name.length < 2) {
         console.log(`Filtering out dud profile ${i}: no valid name (${name})`);
         return false;
       }
-      
-      // Filter out profiles with invalid IDs
       if (!id || id.length < 2) {
         console.log(`Filtering out dud profile ${i}: no valid ID (${id})`);
         return false;
       }
-      
-      // Filter out profiles that are just empty objects or have no meaningful data
       if (!p || typeof p !== 'object' || Object.keys(p).length === 0) {
         console.log(`Filtering out dud profile ${i}: empty object`);
         return false;
       }
-      
-      // Filter out profiles with suspiciously short or repetitive names
       if (name.length < 3 || name === name.charAt(0).repeat(name.length)) {
         console.log(`Filtering out dud profile ${i}: suspicious name (${name})`);
         return false;
       }
-      
       return true;
     });
     
-    // Deduplicate profiles by ID to prevent duplicate nodes
+    // Deduplicate
     const uniqueProfiles = [];
     const seenIds = new Set();
-    
     validProfiles.forEach((p, i) => {
       const id = toId(p, i);
       if (!seenIds.has(id)) {
@@ -161,86 +240,60 @@ if (sample_data) {
       }
     ];
     
-    // Add unique profiles and ensure no duplicate IDs
-    const usedIds = new Set(['me']); // Start with 'me' ID
-    
+    const usedIds = new Set(['me']);
     uniqueProfiles.forEach((p, i) => {
-      let nodeId = toId(p, i);
+      const toIdLocal = (p, i) => {
+        if (typeof p?.profile_url === 'string' && p.profile_url.trim()) {
+          const seg = p.profile_url.split('/').filter(Boolean).pop() || `n${i}`;
+          return seg.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || `n${i}`;
+        }
+        return `n${i}`;
+      };
+      let nodeId = toIdLocal(p, i);
       let counter = 1;
-      
-      // Ensure unique ID by adding counter if needed
       while (usedIds.has(nodeId)) {
-        nodeId = toId(p, i) + counter;
+        nodeId = toIdLocal(p, i) + counter;
         counter++;
       }
       usedIds.add(nodeId);
-      
       const node = {
         id: nodeId,
-        name: toName(p),
-        degree: 1, // All scraped profiles are first-degree connections
+        name: (p?.full_name || p?.name || `${p?.first_name || ''} ${p?.last_name || ''}`).trim() || 'Unknown',
+        degree: 1,
+        // company: (p?.current_company || p?.company || '').trim() || 'Unknown',
         company: toCompany(p),
         school: toSchool(p),
         role: toRole(p),
-        profilePic: toProfilePic(p)
+        profilePic: toProfilePic(p),
+        description: toDescription(p)
       };
-      
       nodes.push(node);
-      console.log(`Processed unique profile ${i}:`, node);
     });
 
-    // build edges array (simplified - in real implementation, this would come from connection data)
+    // build edges array (You -> everyone)
     const edges = [];
-    // Connect "You" node to scraped profiles
-    if (nodes.length > 1) {
-      console.log(`Creating edges for ${nodes.length - 1} scraped profiles...`);
-      
-      // Connect "You" node to all valid scraped profiles
-      for (let i = 1; i < nodes.length; i++) {
-        const targetNode = nodes[i];
-        console.log(`Processing node ${i}:`, targetNode);
-        
-        // Create edge for ALL scraped profiles (they're already filtered)
-        if (targetNode && targetNode.id) {
-          edges.push({
-            source: 'me', // connect to "You" node
-            target: targetNode.id,
-            weight: Math.random() * 0.5 + 0.3, // random weight between 0.3-0.8
-            reasons: ['Scraped connection']
-          });
-          console.log(`✅ Created edge: You -> ${targetNode.name || 'Unknown'} (${targetNode.id})`);
-        } else {
-          console.log(`❌ Skipped creating edge for invalid node:`, targetNode);
-        }
+    for (let i = 1; i < nodes.length; i++) {
+      const targetNode = nodes[i];
+      if (targetNode && targetNode.id) {
+        edges.push({
+          source: 'me',
+          target: targetNode.id,
+          weight: Math.random() * 0.5 + 0.3,
+          reasons: ['Scraped connection']
+        });
       }
-      
-      console.log(`Total edges created: ${edges.length}`);
     }
 
-    // Safety check: ensure all non-"me" nodes have edges
+    // Safety: ensure connected
     const connectedNodeIds = new Set();
     edges.forEach(edge => {
       connectedNodeIds.add(edge.source);
       connectedNodeIds.add(edge.target);
     });
-    
-    const orphanedNodes = nodes.filter(node => 
-      node.id !== 'me' && !connectedNodeIds.has(node.id)
-    );
-    
-    if (orphanedNodes.length > 0) {
-      console.warn(`Found ${orphanedNodes.length} orphaned nodes:`, orphanedNodes);
-      // Add edges for orphaned nodes
-      orphanedNodes.forEach(node => {
-        edges.push({
-          source: 'me',
-          target: node.id,
-          weight: 0.5,
-          reasons: ['Orphaned node connection']
-        });
-        console.log(`🔗 Added missing edge for orphaned node: You -> ${node.name} (${node.id})`);
-      });
-    }
+    const orphanedNodes = nodes.filter(node => node.id !== 'me' && !connectedNodeIds.has(node.id));
+    orphanedNodes.forEach(node => {
+      edges.push({ source: 'me', target: node.id, weight: 0.5, reasons: ['Orphaned node connection'] });
+    });
 
     graph = { nodes, edges };
     console.log('=== PARSED GRAPH DEBUG ===');
@@ -351,239 +404,134 @@ nodeAnimations.clear();
 
 // Create nodes
 sample.nodes.forEach((n, idx) => {
-  // Check if node already exists to prevent duplicates
-  if (nodeObjs.has(n.id)) {
-    console.warn(`Skipping duplicate node creation for ID: ${n.id}`);
-    return;
-  }
-  
-  // Create glowing node group
+  if (nodeObjs.has(n.id)) return;
   const glowNode = new THREE.Group();
-  
-  // Determine node color based on semantic color scheme
-  let nodeColor;
-  if (n.id === 'me') {
-    nodeColor = 0x4CAF50; // Bright green for user node
-  } else {
-    nodeColor = 0x4DA6FF; // Medium blue for 1st-degree connections
-  }
-  
-  // Declare glow variables outside the if block
-  let outerGlow = null;
-  let innerGlow = null;
-  
-  // Outer glow sphere (only if no profile picture)
+  let nodeColor = (n.id === 'me') ? 0x4CAF50 : 0x4DA6FF;
+  let outerGlow = null, innerGlow = null;
+
   if (!n.profilePic) {
     const glowSize = n.id === 'me' ? 24 : 18;
     outerGlow = new THREE.Mesh(
       new THREE.SphereGeometry(glowSize, 16, 12),
       new THREE.MeshBasicMaterial({ 
-        color: nodeColor,
-        transparent: true,
-        opacity: n.id === 'me' ? 0.08 : 0.05, // Much more ethereal glow
-        side: THREE.BackSide,
-        blending: THREE.AdditiveBlending, // Additive blending for ethereal glow
-        fog: false // Disable fog for cleaner glow
+        color: nodeColor, transparent: true, opacity: n.id === 'me' ? 0.08 : 0.05,
+        side: THREE.BackSide, blending: THREE.AdditiveBlending, fog: false
       })
     );
     glowNode.add(outerGlow);
-    
-    // Inner glow sphere (only if no profile picture)
+
     const innerGlowSize = n.id === 'me' ? 15 : 12;
     innerGlow = new THREE.Mesh(
       new THREE.SphereGeometry(innerGlowSize, 16, 12),
       new THREE.MeshBasicMaterial({ 
-        color: nodeColor,
-        transparent: true,
-        opacity: n.id === 'me' ? 0.15 : 0.1, // Much more ethereal glow
-        blending: THREE.AdditiveBlending, // Additive blending for ethereal glow
-        fog: false // Disable fog for cleaner glow
+        color: nodeColor, transparent: true, opacity: n.id === 'me' ? 0.15 : 0.1,
+        blending: THREE.AdditiveBlending, fog: false
       })
     );
     glowNode.add(innerGlow);
   }
   
   let core;
-
   if (n.profilePic) {
-    // Create texture from profile picture
     const loader = new THREE.TextureLoader();
-    console.log(`Attempting to load profile picture for ${n.name}: ${n.profilePic}`);
-
-    // Load texture synchronously first
     try {
       const profileTexture = loader.load(n.profilePic);
-      console.log(`✅ Profile picture loaded for ${n.name}`);
-
-      // Create a circular node with profile picture texture that always faces the camera
       const nodeSize = n.id === 'me' ? 30 : 24;
       const nodeGeometry = new THREE.CircleGeometry(nodeSize/2, 32);
-      
-      // Add some depth by displacing vertices slightly to create a subtle dome
       const vertices = nodeGeometry.attributes.position;
       for (let i = 0; i < vertices.count; i++) {
-        const x = vertices.getX(i);
-        const y = vertices.getY(i);
-        const z = vertices.getZ(i);
-        
-        // Create a subtle dome effect by displacing Z based on distance from center
-        const distanceFromCenter = Math.sqrt(x * x + y * y);
+        const x = vertices.getX(i), y = vertices.getY(i);
+        const distanceFromCenter = Math.sqrt(x*x + y*y);
         const maxDistance = nodeSize / 2;
         const normalizedDistance = Math.min(distanceFromCenter / maxDistance, 1);
-        
-        // Create a subtle curve - more pronounced at edges
         const curveHeight = Math.cos(normalizedDistance * Math.PI / 2) * 1.5;
         vertices.setZ(i, curveHeight);
       }
       vertices.needsUpdate = true;
-      
       const nodeMaterial = new THREE.MeshBasicMaterial({
-        map: profileTexture,
-        color: 0xffffff, // White to show texture clearly without color distortion
-        transparent: false, // Make opaque so it can occlude edges
-        opacity: 1.0,
-        side: THREE.DoubleSide,
-        depthWrite: true,  // Write to depth buffer
-        depthTest: true,   // Test depth
-        alphaTest: 0.5,    // Higher threshold for more solid appearance
-        emissive: 0x000000, // No emissive glow
-        emissiveIntensity: 0, // No emissive intensity
-        roughness: 0.0,    // Make it more solid/smooth
-        metalness: 0.0,    // Non-metallic for solid appearance
-        flatShading: false, // Smooth shading for solid look
-        vertexColors: false // Use material color instead of vertex colors
+        map: profileTexture, color: 0xffffff, transparent: false, opacity: 1.0,
+        side: THREE.DoubleSide, depthWrite: true, depthTest: true, alphaTest: 0.5
       });
-
       core = new THREE.Mesh(nodeGeometry, nodeMaterial);
-      core.renderOrder = 100; // Profile picture renders on top of everything
+      core.renderOrder = 100;
       core.material.depthWrite = true;
       core.material.depthTest = true;
-      core.material.transparent = false; // Ensure solid occlusion
-      core.material.opacity = 1.0; // Ensure full opacity
-      
-      // Add multiple glow layers around profile picture for better color effect
+      core.material.transparent = false;
+      core.material.opacity = 1.0;
+
       const glowSizes = n.id === 'me' ? [40, 35, 30] : [32, 28, 24];
       const glowOpacities = n.id === 'me' ? [0.15, 0.2, 0.25] : [0.1, 0.15, 0.2];
-      
       glowSizes.forEach((glowSize, index) => {
-        // Create a ring geometry around the circular node
-        const innerRadius = nodeSize/2 + 2; // Start just outside the profile picture
+        const innerRadius = nodeSize/2 + 2;
         const outerRadius = glowSize/2;
         const glowGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 32);
         const glowMaterial = new THREE.MeshBasicMaterial({
-          color: nodeColor,
-          transparent: true,
-          opacity: glowOpacities[index],
-          side: THREE.DoubleSide,
-          depthWrite: false, // Don't write to depth buffer
-          depthTest: false,  // Don't test depth
-          blending: THREE.AdditiveBlending, // Additive blending for ethereal glow
-          fog: false // Disable fog for cleaner glow
+          color: nodeColor, transparent: true, opacity: glowOpacities[index],
+          side: THREE.DoubleSide, depthWrite: false, depthTest: false,
+          blending: THREE.AdditiveBlending, fog: false
         });
-        
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        glow.position.z = -0.1 - (index * 0.05); // Slightly behind the profile picture
-        glow.renderOrder = 1; // Glow renders behind profile picture but above edges
+        glow.position.z = -0.1 - (index * 0.05);
+        glow.renderOrder = 1;
         glow.userData.isGlow = true;
-        glow.userData.isBillboard = true; // Make glow also billboard
+        glow.userData.isBillboard = true;
         glow.userData.glowIndex = index;
         glowNode.add(glow);
       });
-      
-      // Make the circular node always face the camera by updating its rotation in the animation loop
       core.userData.isBillboard = true;
-      
-    } catch (error) {
-      console.error(`❌ Failed to load profile picture for ${n.name}:`, error);
-      // Fallback to solid color sphere
+    } catch (err) {
       const coreSize = n.id === 'me' ? 8 : 6;
       const coreGeometry = new THREE.SphereGeometry(coreSize, 16, 12);
-      const coreMaterial = new THREE.MeshBasicMaterial({
-        color: nodeColor,
-        transparent: true,
-        opacity: 0.8
-      });
+      const coreMaterial = new THREE.MeshBasicMaterial({ color: nodeColor, transparent: true, opacity: 0.8 });
       core = new THREE.Mesh(coreGeometry, coreMaterial);
     }
   } else {
-    // Fallback to solid color sphere
     const coreSize = n.id === 'me' ? 8 : 6;
     const coreGeometry = new THREE.SphereGeometry(coreSize, 16, 12);
-    const coreMaterial = new THREE.MeshBasicMaterial({
-      color: nodeColor,
-      transparent: true,
-      opacity: 0.8
-    });
+    const coreMaterial = new THREE.MeshBasicMaterial({ color: nodeColor, transparent: true, opacity: 0.8 });
     core = new THREE.Mesh(coreGeometry, coreMaterial);
   }
 
   glowNode.add(core);
   
-  // Layout nodes in 3D space with 'me' at center
   if (n.id === 'me') {
     glowNode.position.set(0, 0, 0);
   } else {
-    // Use spherical coordinates for 3D distribution
-    const phi = Math.acos(2 * Math.random() - 1); // Random polar angle (0 to π)
-    const theta = 2 * Math.PI * Math.random(); // Random azimuthal angle (0 to 2π)
-    const radius = 120 + Math.random() * 120; // Random radius between 120 and 240
-    
-    // Convert spherical to Cartesian coordinates
+    const phi = Math.acos(2 * Math.random() - 1);
+    const theta = 2 * Math.PI * Math.random();
+    const radius = 120 + Math.random() * 120;
     glowNode.position.set(
       radius * Math.sin(phi) * Math.cos(theta),
       radius * Math.sin(phi) * Math.sin(theta),
       radius * Math.cos(phi)
     );
   }
-  glowNode.renderOrder = 10; // Render nodes well above edges
+  glowNode.renderOrder = 10;
   nodeGroup.add(glowNode);
   nodeObjs.set(n.id, glowNode);
 
-  // Create detailed label with name and company (hidden by default)
   const labelDiv = document.createElement("div");
   labelDiv.className = "tooltip";
-  
-  // Format: "Firstname Lastname, Role @ Company" or just "Name" if company/role are Unknown
-  let labelText = n.name;
-  
-  // For "You" node, just show "You"
-  if (n.id === 'me') {
-    labelText = 'You';
-  } else {
-    // For other nodes, show name and company/role if they're not "Unknown"
-    if (n.role && n.role !== 'Unknown' && n.company && n.company !== 'Unknown') {
-      labelText += `, ${n.role} @ ${n.company}`;
-    } else if (n.company && n.company !== 'Unknown') {
-      labelText += ` @ ${n.company}`;
-    } else if (n.role && n.role !== 'Unknown') {
-      labelText += `, ${n.role}`;
-    }
-    // If everything is "Unknown", just show the name
+  let labelText = n.id === 'me' ? 'You' : n.name;
+  if (n.id !== 'me') {
+    if (n.role && n.role !== 'Unknown' && n.company && n.company !== 'Unknown') labelText += `, ${n.role} @ ${n.company}`;
+    else if (n.company && n.company !== 'Unknown') labelText += ` @ ${n.company}`;
+    else if (n.role && n.role !== 'Unknown') labelText += `, ${n.role}`;
   }
-  
   labelDiv.textContent = labelText;
-  
-  // Show "You" node label by default, hide others
   if (n.id === 'me') {
     labelDiv.style.display = 'block';
     labelDiv.style.visibility = 'visible';
     labelDiv.style.opacity = '1';
   } else {
-    labelDiv.style.display = 'none'; // Hidden by default, shown on hover
-    labelDiv.style.visibility = 'hidden'; // Double ensure it's hidden
-    labelDiv.style.opacity = '0'; // Make it completely invisible
+    labelDiv.style.display = 'none';
+    labelDiv.style.visibility = 'hidden';
+    labelDiv.style.opacity = '0';
   }
-  
   const label = new CSS2DObject(labelDiv);
-  label.position.set(0, -15, 0); // Position below the node
+  label.position.set(0, -15, 0);
   glowNode.add(label);
-  
-  // Store reference to label for hover effects
-  glowNode.userData = { 
-    nodeId: n.id, 
-    label: labelDiv,
-    originalScale: 1
-  };
+  glowNode.userData = { nodeId: n.id, label: labelDiv, originalScale: 1 };
 
   nodeAnimations.set(n.id, {
     originalPos: glowNode.position.clone(),
@@ -593,8 +541,8 @@ sample.nodes.forEach((n, idx) => {
     scaleAmplitude: 0.1 + Math.random()*0.1,
     scaleFrequency: 0.3 + Math.random()*0.4,
     glowNode: glowNode,
-    outerGlow: outerGlow, // null if no profile picture
-    innerGlow: innerGlow, // null if no profile picture
+    outerGlow: outerGlow,
+    innerGlow: innerGlow,
     core: core
   });
 });
@@ -606,25 +554,15 @@ sample.edges.forEach(e => {
   const t = nodeObjs.get(e.target);
   if (!s || !t) return;
   const geom = new THREE.BufferGeometry().setFromPoints([s.position, t.position]);
-  
-  // Default edge color - light gray at 60% opacity
-  const color = 0x9aa7c6;
-  const opacity = 0.6;
-  const linewidth = 3;
-  
+  const color = 0x9aa7c6, opacity = 0.6;
   const line = new THREE.Line(geom, new THREE.LineBasicMaterial({ 
-    color: color, 
-    transparent: true, 
-    opacity: opacity,
-    depthTest: true,
-    depthWrite: true,
-    alphaTest: 0.1
+    color, transparent: true, opacity, depthTest: true, depthWrite: true, alphaTest: 0.1
   }));
-  line.renderOrder = -10; // Render edges well behind nodes
+  line.renderOrder = -10;
   line.material.depthWrite = true;
   line.material.depthTest = true;
-  line.material.transparent = true; // Keep edges transparent
-  line.material.opacity = 0.6; // Ensure proper opacity
+  line.material.transparent = true;
+  line.material.opacity = 0.6;
   edgeGroup.add(line);
   edgeLines.set(`${e.source}-${e.target}`, line);
 });
@@ -632,96 +570,57 @@ sample.edges.forEach(e => {
 // Zoom in on optimal path nodes
 function zoomToOptimalPath() {
   if (!currentOptimalPath || currentOptimalPath.path.length === 0) return;
-  
-  // Get all nodes in the optimal path
-  const pathNodes = currentOptimalPath.path.map(nodeId => nodeObjs.get(nodeId)).filter(node => node);
-  
+  const pathNodes = currentOptimalPath.path.map(nodeId => nodeObjs.get(nodeId)).filter(Boolean);
   if (pathNodes.length === 0) return;
-  
-  // Calculate bounding box of optimal path nodes
   const box = new THREE.Box3();
   pathNodes.forEach(node => box.expandByObject(node));
-  
-  // Get center and size of the bounding box
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
-  
-  // Calculate distance needed to fit the bounding box in view
   const maxDim = Math.max(size.x, size.y, size.z);
-  const distance = maxDim * 2; // Add some padding
-  
-  // Calculate new camera position
+  const distance = maxDim * 2;
   const direction = new THREE.Vector3().subVectors(camera.position, center).normalize();
   const newPosition = center.clone().add(direction.multiplyScalar(distance));
-  
-  // Animate camera to new position
   const startPosition = camera.position.clone();
   const startTarget = controls.target.clone();
   const newTarget = center.clone();
-  
   let progress = 0;
-  const duration = 1000; // 1 second animation
+  const duration = 1000;
   const startTime = performance.now();
-  
   function animateCamera() {
     const elapsed = performance.now() - startTime;
     progress = Math.min(elapsed / duration, 1);
-    
-    // Easing function for smooth animation
-    const easeInOutCubic = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-    const easedProgress = easeInOutCubic(progress);
-    
-    // Interpolate camera position and target
-    camera.position.lerpVectors(startPosition, newPosition, easedProgress);
-    controls.target.lerpVectors(startTarget, newTarget, easedProgress);
+    const ease = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+    const p = ease(progress);
+    camera.position.lerpVectors(startPosition, newPosition, p);
+    controls.target.lerpVectors(startTarget, newTarget, p);
     controls.update();
-    
-    if (progress < 1) {
-      requestAnimationFrame(animateCamera);
-    }
+    if (progress < 1) requestAnimationFrame(animateCamera);
   }
-  
   animateCamera();
 }
 
 // Find optimal path from 'me' to a specific target node
 function findOptimalPathToTarget(targetId) {
   if (targetId === 'me') return { edges: new Set(), path: ['me'] };
-  
   const visited = new Set();
-  const queue = [{node: 'me', path: ['me'], weight: 0}];
-  
+  const queue = [{ node: 'me', path: ['me'], weight: 0 }];
   while (queue.length > 0) {
-    const {node, path, weight} = queue.shift();
-    
+    const { node, path, weight } = queue.shift();
     if (node === targetId) {
-      // Reconstruct path
       const optimalEdges = new Set();
       for (let i = 0; i < path.length - 1; i++) {
         optimalEdges.add(`${path[i]}-${path[i + 1]}`);
       }
-      return { edges: optimalEdges, path: path };
+      return { edges: optimalEdges, path };
     }
-    
     if (visited.has(node)) continue;
     visited.add(node);
-    
-    // Find all edges from current node
-    const outgoingEdges = sample.edges.filter(e => e.source === node && !visited.has(e.target));
-    
-    for (const edge of outgoingEdges) {
-      const newWeight = weight + edge.weight;
-      queue.push({
-        node: edge.target,
-        path: [...path, edge.target],
-        weight: newWeight
-      });
+    const outgoing = sample.edges.filter(e => e.source === node && !visited.has(e.target));
+    for (const edge of outgoing) {
+      queue.push({ node: edge.target, path: [...path, edge.target], weight: weight + edge.weight });
     }
-    
-    // Sort by total weight (highest first for better path)
     queue.sort((a, b) => b.weight - a.weight);
   }
-  
   return { edges: new Set(), path: [] };
 }
 
@@ -739,95 +638,70 @@ function updateEdges(){
 function highlightNode(nodeId, highlightType = 'none') {
   const node = nodeObjs.get(nodeId);
   if (!node) return;
-  
   const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
-  
   if (highlightType === 'target') {
-    // Target node - vivid orange
     highlightedNodes.add(nodeId);
     node.children.forEach(child => {
-      if (child.material) {
-        if (child.userData.isBillboard) {
-          // Keep profile picture unchanged - no color overlay
-          // Profile picture stays clear and undistorted
-        } else if (child.userData.isGlow) {
-          // For glow effects, make them more prominent with orange
-          child.material.color.setHex(0xFF7043);
-          child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0); // Much brighter, cap at 1.0
-        } else {
-          child.material.color.setHex(0xFF7043); // Vivid orange
-        }
+      if (!child.material) return;
+      if (child.userData.isBillboard) {
+        // keep profile pic unchanged
+      } else if (child.userData.isGlow) {
+        child.material.color.setHex(0xFF7043);
+        child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0);
+      } else {
+        child.material.color.setHex(0xFF7043);
       }
     });
-    
-    // Add subtle glow effect for optimal path
-    if (node.userData && node.userData.glowNode) {
+    if (node.userData?.glowNode) {
       node.userData.glowNode.children.forEach(child => {
-        if (child.material && child.material.emissive) {
-          child.material.emissive.setHex(0x331100); // Subtle orange glow
+        if (child.material?.emissive) {
+          child.material.emissive.setHex(0x331100);
           child.material.emissiveIntensity = 0.3;
         }
       });
     }
-    
-    // Make the target node's label permanently visible
-    if (node.userData && node.userData.label) {
+    if (node.userData?.label) {
       node.userData.label.style.display = 'block';
       node.userData.label.style.visibility = 'visible';
       node.userData.label.style.opacity = '1';
     }
   } else if (highlightType === 'intermediate') {
-    // Intermediate node - yellow
     highlightedNodes.add(nodeId);
     node.children.forEach(child => {
-      if (child.material) {
-        if (child.userData.isBillboard) {
-          // Keep profile picture unchanged - no color overlay
-          // Profile picture stays clear and undistorted
-        } else if (child.userData.isGlow) {
-          // For glow effects, make them more prominent with yellow
-          child.material.color.setHex(0xffd700);
-          child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0); // Much brighter, cap at 1.0
-        } else {
-          child.material.color.setHex(0xffd700); // Gold/yellow
-        }
+      if (!child.material) return;
+      if (child.userData.isBillboard) {
+      } else if (child.userData.isGlow) {
+        child.material.color.setHex(0xffd700);
+        child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0);
+      } else {
+        child.material.color.setHex(0xffd700);
       }
     });
-    
-    // Add subtle glow effect for optimal path
-    if (node.userData && node.userData.glowNode) {
+    if (node.userData?.glowNode) {
       node.userData.glowNode.children.forEach(child => {
-        if (child.material && child.material.emissive) {
-          child.material.emissive.setHex(0x332200); // Subtle yellow glow
+        if (child.material?.emissive) {
+          child.material.emissive.setHex(0x332200);
           child.material.emissiveIntensity = 0.2;
         }
       });
     }
   } else {
-    // Clear highlighting
     highlightedNodes.delete(nodeId);
     node.children.forEach(child => {
-      if (child.material) {
-        if (child.userData.isBillboard) {
-          // Keep profile picture unchanged - no color overlay
-          // Profile picture stays clear and undistorted
-        } else if (child.userData.isGlow) {
-          // For glow effects, restore original color and opacity
-          child.material.color.setHex(originalColor);
-          // Restore original opacity based on glow layer
-          const originalOpacities = nodeId === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
-          child.material.opacity = originalOpacities[child.userData.glowIndex] || 0.3;
-        } else {
-          child.material.color.setHex(originalColor);
-        }
+      if (!child.material) return;
+      if (child.userData.isBillboard) {
+      } else if (child.userData.isGlow) {
+        child.material.color.setHex(originalColor);
+        const originalOpacities = nodeId === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
+        child.material.opacity = originalOpacities[child.userData.glowIndex] || 0.3;
+      } else {
+        child.material.color.setHex(originalColor);
       }
     });
-    
-    // Reset glow effect
-    if (node.userData && node.userData.glowNode) {
+    if (node.userData?.glowNode) {
       node.userData.glowNode.children.forEach(child => {
-        if (child.material && child.material.emissive) {
-          child.material.emissive.setHex(0x000000); // Reset glow
+        if (child.material?.emissive) {
+          child.material.emissive.setHex(0x000000);
           child.material.emissiveIntensity = 0;
         }
       });
@@ -836,127 +710,83 @@ function highlightNode(nodeId, highlightType = 'none') {
 }
 
 function updateOptimalPath(targetId) {
-  // Hide the previous target's label if it exists and is not 'me'
   if (currentTarget && currentTarget !== 'me') {
-    const previousTargetNode = nodeObjs.get(currentTarget);
-    if (previousTargetNode && previousTargetNode.userData && previousTargetNode.userData.label) {
-      previousTargetNode.userData.label.style.display = 'none';
-      previousTargetNode.userData.label.style.visibility = 'hidden';
-      previousTargetNode.userData.label.style.opacity = '0';
+    const prev = nodeObjs.get(currentTarget);
+    if (prev?.userData?.label) {
+      prev.userData.label.style.display = 'none';
+      prev.userData.label.style.visibility = 'hidden';
+      prev.userData.label.style.opacity = '0';
     }
   }
-  
-  // Clear previous highlights
   highlightedNodes.forEach(nodeId => highlightNode(nodeId, 'none'));
   highlightedNodes.clear();
-  
   currentTarget = targetId;
   currentOptimalPath = findOptimalPathToTarget(targetId);
-  
-  // Highlight nodes in the optimal path with different colors
-  currentOptimalPath.path.forEach((nodeId, index) => {
-    if (nodeId !== 'me') { // Don't highlight the 'me' node
-      if (nodeId === targetId) {
-        // Target node - bright orange
-        highlightNode(nodeId, 'target');
-      } else {
-        // Intermediate node - yellow
-        highlightNode(nodeId, 'intermediate');
-      }
+
+  currentOptimalPath.path.forEach((nodeId) => {
+    if (nodeId !== 'me') {
+      if (nodeId === targetId) highlightNode(nodeId, 'target');
+      else highlightNode(nodeId, 'intermediate');
     }
   });
-  
-  // Update edge colors and create thick cylinders for optimal path
+
   sample.edges.forEach(e => {
     const line = edgeLines.get(`${e.source}-${e.target}`);
     if (!line) return;
-    
     const isOptimal = currentOptimalPath.edges.has(`${e.source}-${e.target}`);
-    
     if (isOptimal) {
-      // Hide the original line and create a thick cylinder
       line.visible = false;
-      
-      // Create thick cylinder for optimal path
       const s = nodeObjs.get(e.source);
       const t = nodeObjs.get(e.target);
       if (s && t) {
         const direction = new THREE.Vector3().subVectors(t.position, s.position);
         const length = direction.length();
         const midpoint = new THREE.Vector3().addVectors(s.position, t.position).multiplyScalar(0.5);
-        
         const cylinderGeometry = new THREE.CylinderGeometry(0.6, 0.6, length, 8);
-        const cylinderMaterial = new THREE.MeshBasicMaterial({
-          color: 0xFFD700, // Gold for highlighted path edges
-          transparent: true,
-          opacity: 0.9
-        });
-        
+        const cylinderMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700, transparent: true, opacity: 0.9 });
         const cylinder = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
         cylinder.position.copy(midpoint);
         cylinder.lookAt(t.position);
         cylinder.rotateX(Math.PI / 2);
-        cylinder.renderOrder = -5; // Render cylinders behind nodes but above regular edges
-        
-        // Store reference to remove later
+        cylinder.renderOrder = -5;
         cylinder.userData = { isOptimalEdge: true, edgeKey: `${e.source}-${e.target}` };
         edgeGroup.add(cylinder);
       }
     } else {
-      // Show the original line and remove any existing cylinder
       line.visible = true;
-      
-      // Remove any existing optimal path cylinder for this edge
       edgeGroup.children.forEach(child => {
-        if (child.userData && child.userData.isOptimalEdge && child.userData.edgeKey === `${e.source}-${e.target}`) {
+        if (child.userData?.isOptimalEdge && child.userData.edgeKey === `${e.source}-${e.target}`) {
           edgeGroup.remove(child);
         }
       });
-      
-      // Restore original strength-based colors
       let color, opacity;
-      if (e.weight >= 0.7) {
-        color = 0x4da6ff; // Bright blue
-        opacity = 0.9;
-      } else if (e.weight >= 0.5) {
-        color = 0x6b9bd2; // Medium blue
-        opacity = 0.8;
-      } else {
-        color = 0x9aa7c6; // Gray
-        opacity = 0.6;
-      }
+      if (e.weight >= 0.7) { color = 0x4da6ff; opacity = 0.9; }
+      else if (e.weight >= 0.5) { color = 0x6b9bd2; opacity = 0.8; }
+      else { color = 0x9aa7c6; opacity = 0.6; }
       line.material.color.setHex(color);
       line.material.opacity = opacity;
     }
   });
-  
-  // Update sidebar info
+
   updateSidebarInfo();
+  zoomToOptimalPath();
 }
 
 function updateSidebarInfo() {
   const optimalPathDiv = document.querySelector('.optimal-path-info');
   if (!optimalPathDiv) return;
-  
   if (!currentTarget || currentOptimalPath.path.length === 0) {
     optimalPathDiv.style.display = 'none';
     return;
   }
-  
   const targetNode = sample.nodes.find(n => n.id === currentTarget);
-  const pathNames = currentOptimalPath.path.map(id => {
-    const node = sample.nodes.find(n => n.id === id);
-    return node ? node.name : id;
-  });
-  
+  const pathNames = currentOptimalPath.path.map(id => (sample.nodes.find(n => n.id === id)?.name) || id);
   optimalPathDiv.style.display = 'block';
   optimalPathDiv.innerHTML = `
     <strong>Optimal Path to ${targetNode ? targetNode.name : 'Target'}:</strong><br>
     ${pathNames.join(' → ')}<br>
     <em style="color: #FFD700; cursor: pointer; text-decoration: underline;">Click to zoom in on path</em>
   `;
-  
-  // Add click event listener for zoom functionality
   optimalPathDiv.style.cursor = 'pointer';
   optimalPathDiv.onclick = zoomToOptimalPath;
 }
@@ -964,40 +794,23 @@ function updateSidebarInfo() {
 // Hover effect functions
 function applyHoverEffect(node) {
   if (!node.userData) return;
-  
-  // Store original scale
   hoveredNodeOriginalScale = node.scale.clone();
-  
-  // Enlarge the node
   node.scale.multiplyScalar(1.3);
-  
-  // Show the label
   if (node.userData.label) {
     node.userData.label.style.display = 'block';
     node.userData.label.style.visibility = 'visible';
     node.userData.label.style.opacity = '1';
   }
-  
-  // Change cursor
   renderer.domElement.style.cursor = 'pointer';
 }
-
 function resetHoverEffect(node) {
   if (!node.userData) return;
-  
-  // Reset scale
-  if (hoveredNodeOriginalScale) {
-    node.scale.copy(hoveredNodeOriginalScale);
-  }
-  
-  // Hide the label (but never hide the "You" node label or current target node)
+  if (hoveredNodeOriginalScale) node.scale.copy(hoveredNodeOriginalScale);
   if (node.userData.label && node.userData.nodeId !== 'me' && node.userData.nodeId !== currentTarget) {
     node.userData.label.style.display = 'none';
     node.userData.label.style.visibility = 'hidden';
     node.userData.label.style.opacity = '0';
   }
-  
-  // Reset cursor
   renderer.domElement.style.cursor = 'default';
 }
 
@@ -1017,7 +830,6 @@ function setPointer(ev){
   pointer.x = ((ev.clientX - r.left)/r.width)*2 - 1;
   pointer.y = -((ev.clientY - r.top)/r.height)*2 + 1;
 }
-
 function pickNode(ev){
   setPointer(ev);
   raycaster.setFromCamera(pointer, camera);
@@ -1025,14 +837,11 @@ function pickNode(ev){
   const intersects = raycaster.intersectObjects(nodeArray, true);
   if(intersects.length > 0) {
     let parent = intersects[0].object.parent;
-    while(parent && !nodeArray.includes(parent)) {
-      parent = parent.parent;
-    }
+    while(parent && !nodeArray.includes(parent)) parent = parent.parent;
     return parent || intersects[0].object;
   }
   return null;
 }
-
 function onPointerDown(ev){
   const obj = pickNode(ev);
   if(obj) {
@@ -1041,7 +850,6 @@ function onPointerDown(ev){
     dragPlane.setFromNormalAndCoplanarPoint(camDir, obj.position);
     raycaster.ray.intersectPlane(dragPlane, planeIntersect);
     dragOffset.copy(obj.position).sub(planeIntersect);
-
     draggedNode = obj;
     isDragging = true;
     controls.enabled = false;
@@ -1052,19 +860,13 @@ function onPointerDown(ev){
     draggedNode = null;
   }
 }
-
 function onPointerMove(ev){
   if(isDragging && draggedNode) {
     setPointer(ev);
     raycaster.setFromCamera(pointer, camera);
     if(raycaster.ray.intersectPlane(dragPlane, planeIntersect)){
       draggedNode.position.copy(planeIntersect).add(dragOffset);
-      
-      // In 2D mode, lock Z position to 0
-      if (!is3DMode) {
-        draggedNode.position.z = 0;
-      }
-
+      if (!is3DMode) draggedNode.position.z = 0;
       const id = [...nodeObjs.entries()].find(([_, n]) => n === draggedNode)?.[0];
       if(id){
         const anim = nodeAnimations.get(id);
@@ -1073,38 +875,24 @@ function onPointerMove(ev){
       updateEdges();
     }
   } else {
-    // Handle hover effects when not dragging
     setPointer(ev);
     raycaster.setFromCamera(pointer, camera);
     const nodeArray = Array.from(nodeObjs.values());
     const intersects = raycaster.intersectObjects(nodeArray, true);
-    
     if(intersects.length > 0) {
-      // Find the parent group that contains this mesh
       let parent = intersects[0].object.parent;
-      while(parent && !nodeArray.includes(parent)) {
-        parent = parent.parent;
-      }
-      
+      while(parent && !nodeArray.includes(parent)) parent = parent.parent;
       if(parent && parent !== hoveredNode) {
-        // New node hovered
-        if(hoveredNode) {
-          // Reset previous hovered node
-          resetHoverEffect(hoveredNode);
-        }
-        
-        // Apply hover effect to new node
+        if(hoveredNode) resetHoverEffect(hoveredNode);
         hoveredNode = parent;
         applyHoverEffect(hoveredNode);
       }
     } else if(hoveredNode) {
-      // No node hovered, reset current hovered node
       resetHoverEffect(hoveredNode);
       hoveredNode = null;
     }
   }
 }
-
 function onPointerUp(ev){
   if(isDragging) {
     isDragging = false;
@@ -1113,27 +901,22 @@ function onPointerUp(ev){
     try { renderer.domElement.releasePointerCapture?.(ev.pointerId); } catch {}
   }
 }
-
 renderer.domElement.addEventListener('pointerdown', onPointerDown);
 renderer.domElement.addEventListener('pointermove', onPointerMove);
 renderer.domElement.addEventListener('pointerup', onPointerUp);
 renderer.domElement.addEventListener('pointerleave', onPointerUp);
 
-// Search functionality
+// Search box (manual)
 const searchInput = document.getElementById('search');
 const highlightButton = document.getElementById('highlight');
-
 function searchAndHighlight() {
   const searchTerm = searchInput.value.toLowerCase().trim();
   if (!searchTerm) return;
-  
   const matchingNode = sample.nodes.find(node => 
     node.name.toLowerCase().includes(searchTerm) || 
     (node.company && node.company.toLowerCase().includes(searchTerm))
   );
-  
   if (matchingNode) {
-    console.log('Found matching node:', matchingNode);
     updateOptimalPath(matchingNode.id);
   } else {
     const availableNames = sample.nodes.map(n => n.name).join(', ');
@@ -1141,431 +924,235 @@ function searchAndHighlight() {
     alert(`No match found for "${searchTerm}".\n\nTry:\nNames: ${availableNames}\nCompanies: ${availableCompanies}`);
   }
 }
-
 highlightButton.addEventListener('click', searchAndHighlight);
-searchInput.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') {
-    searchAndHighlight();
-  }
-});
+searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') searchAndHighlight(); });
 
 // 2D/3D Toggle functionality
 const viewToggle3D = document.getElementById('viewToggle');
 const viewToggle2D = document.getElementById('viewToggle2d');
-
 viewToggle3D.addEventListener('click', () => switchTo3D());
 viewToggle2D.addEventListener('click', () => switchTo2D());
-
-// Switch to 3D mode
-function switchTo3D() {
-  if (is3DMode) return;
-  is3DMode = true;
-  updateToggleButtons();
-  updateControlsForMode();
-  ensureRenderOrder();
-  animateToLayout('3d');
-}
-
-// Switch to 2D mode
-function switchTo2D() {
-  if (!is3DMode) return;
-  is3DMode = false;
-  updateToggleButtons();
-  updateControlsForMode();
-  ensureRenderOrder();
-  animateToLayout('2d');
-}
-
-// Update toggle button states
+function switchTo3D() { if (is3DMode) return; is3DMode = true; updateToggleButtons(); updateControlsForMode(); ensureRenderOrder(); animateToLayout('3d'); }
+function switchTo2D() { if (!is3DMode) return; is3DMode = false; updateToggleButtons(); updateControlsForMode(); ensureRenderOrder(); animateToLayout('2d'); }
 function updateToggleButtons() {
   viewToggle3D.classList.toggle('active', is3DMode);
   viewToggle2D.classList.toggle('active', !is3DMode);
 }
-
-// Update camera controls based on mode
 function updateControlsForMode() {
   if (is3DMode) {
-    // 3D mode - full 3D controls
-    controls.enableRotate = true;
-    controls.enableZoom = true;
-    controls.enablePan = true;
-    controls.minPolarAngle = 0;
-    controls.maxPolarAngle = Math.PI;
+    controls.enableRotate = true; controls.enableZoom = true; controls.enablePan = true;
+    controls.minPolarAngle = 0; controls.maxPolarAngle = Math.PI;
   } else {
-    // 2D mode - constrain to 2D plane
-    controls.enableRotate = true;
-    controls.enableZoom = true;
-    controls.enablePan = true;
-    controls.minPolarAngle = Math.PI/2 - 0.1; // Lock to top-down view
-    controls.maxPolarAngle = Math.PI/2 + 0.1;
+    controls.enableRotate = true; controls.enableZoom = true; controls.enablePan = true;
+    controls.minPolarAngle = Math.PI/2 - 0.1; controls.maxPolarAngle = Math.PI/2 + 0.1;
   }
 }
-
-// Ensure proper render order for both 2D and 3D modes
 function ensureRenderOrder() {
-  // Ensure all profile pictures are on top
-  nodeObjs.forEach((node, nodeId) => {
+  nodeObjs.forEach((node) => {
     node.children.forEach(child => {
       if (child.userData.isBillboard && child.material) {
-        child.renderOrder = 100; // Very high render order
+        child.renderOrder = 100;
         child.material.depthWrite = true;
         child.material.depthTest = true;
       }
     });
   });
-  
-  // Ensure all edges are behind nodes
   edgeGroup.children.forEach(edge => {
     edge.renderOrder = -10;
-    if (edge.material) {
-      edge.material.depthWrite = true;
-      edge.material.depthTest = true;
-    }
+    if (edge.material) { edge.material.depthWrite = true; edge.material.depthTest = true; }
   });
-  
-  // Ensure optimal path cylinders are behind nodes but above edges
   edgeGroup.children.forEach(cylinder => {
-    if (cylinder.userData && cylinder.userData.isOptimalEdge) {
+    if (cylinder.userData?.isOptimalEdge) {
       cylinder.renderOrder = -5;
-      if (cylinder.material) {
-        cylinder.material.depthWrite = true;
-        cylinder.material.depthTest = true;
-      }
+      if (cylinder.material) { cylinder.material.depthWrite = true; cylinder.material.depthTest = true; }
     }
   });
 }
-
-// Animate nodes to new layout
 function animateToLayout(mode) {
-  const duration = 1000; // 1 second animation
-  const startTime = performance.now();
-  
-  // Store original positions
+  const duration = 1000, startTime = performance.now();
   const originalPositions = new Map();
-  nodeObjs.forEach((node, nodeId) => {
-    originalPositions.set(nodeId, node.position.clone());
-  });
-  
-  // Calculate target positions - much simpler approach
+  nodeObjs.forEach((node, nodeId) => originalPositions.set(nodeId, node.position.clone()));
   const targetPositions = new Map();
   nodeObjs.forEach((node, nodeId) => {
     const currentPos = node.position.clone();
     let targetPos;
-    
     if (mode === '2d') {
-      // Going to 2D: freeze current X,Y, set Z to 0
       targetPos = new THREE.Vector3(currentPos.x, currentPos.y, 0);
-      // Store the original Z position for restoration later
       frozenZPositions.set(nodeId, currentPos.z);
     } else {
-      // Going to 3D: restore X,Y,Z (or use current if no frozen Z)
       const frozenZ = frozenZPositions.get(nodeId);
-      if (frozenZ !== undefined) {
-        // Use the frozen Z position directly for smooth transition
-        targetPos = new THREE.Vector3(currentPos.x, currentPos.y, frozenZ);
-        frozenZPositions.delete(nodeId); // Clear the frozen position
-      } else {
-        // No frozen Z, just use current position
-        targetPos = currentPos.clone();
-      }
+      targetPos = (frozenZ !== undefined) ? new THREE.Vector3(currentPos.x, currentPos.y, frozenZ) : currentPos.clone();
+      frozenZPositions.delete(nodeId);
     }
     targetPositions.set(nodeId, targetPos);
   });
-  
-  // Animate camera position
-  const targetCameraPos = mode === '2d' ? 
-    new THREE.Vector3(0, 0, 350) : 
-    new THREE.Vector3(250, 250, 250);
-  
+  const targetCameraPos = mode === '2d' ? new THREE.Vector3(0, 0, 350) : new THREE.Vector3(250, 250, 250);
   const startCameraPos = camera.position.clone();
   const startTarget = controls.target.clone();
   const targetControlsTarget = new THREE.Vector3(0, 0, 0);
-  
   function animateLayout() {
     const elapsed = performance.now() - startTime;
     const progress = Math.min(elapsed / duration, 1);
-    
-    // Use a smoother easing function for 2D to 3D transitions
-    let easedProgress;
-    if (mode === '2d') {
-      // 3D to 2D: use standard easing
-      easedProgress = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-    } else {
-      // 2D to 3D: use smoother easing to prevent skipping
-      easedProgress = progress * progress * (3 - 2 * progress); // Smooth step function
-    }
-    
-    // Animate node positions
+    const eased = (mode === '2d')
+      ? (progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2)
+      : (progress * progress * (3 - 2 * progress));
     nodeObjs.forEach((node, nodeId) => {
       const startPos = originalPositions.get(nodeId);
       const targetPos = targetPositions.get(nodeId);
-      if (startPos && targetPos) {
-        node.position.lerpVectors(startPos, targetPos, easedProgress);
-      }
+      if (startPos && targetPos) node.position.lerpVectors(startPos, targetPos, eased);
     });
-    
-    // Animate camera
-    camera.position.lerpVectors(startCameraPos, targetCameraPos, easedProgress);
-    controls.target.lerpVectors(startTarget, targetControlsTarget, easedProgress);
+    camera.position.lerpVectors(startCameraPos, targetCameraPos, eased);
+    controls.target.lerpVectors(startTarget, targetControlsTarget, eased);
     controls.update();
-    
-    if (progress < 1) {
-      requestAnimationFrame(animateLayout);
-    } else {
-      // Update original positions for floating animation
-      nodeObjs.forEach((node, nodeId) => {
-        const anim = nodeAnimations.get(nodeId);
-        if (anim) {
-          anim.originalPos.copy(node.position);
-        }
-      });
-    }
+    if (progress < 1) requestAnimationFrame(animateLayout);
+    else nodeObjs.forEach((node, nodeId) => nodeAnimations.get(nodeId)?.originalPos.copy(node.position));
   }
-  
   animateLayout();
 }
 
 // Industry clustering analysis
 function analyzeIndustryClusters() {
   const industryMap = new Map();
-  
   sample.nodes.forEach(node => {
     if (node.company) {
       const industry = getIndustryFromCompany(node.company);
-      if (!industryMap.has(industry)) {
-        industryMap.set(industry, []);
-      }
+      if (!industryMap.has(industry)) industryMap.set(industry, []);
       industryMap.get(industry).push(node);
     }
   });
-  
   let largestCluster = { industry: 'Unknown', count: 0, nodes: [] };
   for (const [industry, nodes] of industryMap) {
-    if (nodes.length > largestCluster.count) {
-      largestCluster = { industry, count: nodes.length, nodes };
-    }
+    if (nodes.length > largestCluster.count) largestCluster = { industry, count: nodes.length, nodes };
   }
-  
   return largestCluster;
 }
-
 function getIndustryFromCompany(company) {
-  const techCompanies = ['Google', 'Meta', 'Apple', 'Microsoft', 'Stripe', 'Amazon', 'Netflix', 'Uber', 'Airbnb', 'Tesla', 'SpaceX', 'OpenAI', 'Anthropic'];
-  const financeCompanies = ['Goldman Sachs', 'JPMorgan', 'Morgan Stanley', 'BlackRock', 'Vanguard', 'Fidelity', 'Wells Fargo', 'Bank of America', 'Citigroup'];
-  const consultingCompanies = ['McKinsey', 'Bain', 'BCG', 'Deloitte', 'PwC', 'EY', 'KPMG', 'Accenture'];
-  
-  if (techCompanies.includes(company)) return 'Software Engineering';
-  if (financeCompanies.includes(company)) return 'Finance';
-  if (consultingCompanies.includes(company)) return 'Consulting';
-  
+  const tech = ['Google','Meta','Apple','Microsoft','Stripe','Amazon','Netflix','Uber','Airbnb','Tesla','SpaceX','OpenAI','Anthropic'];
+  const fin = ['Goldman Sachs','JPMorgan','Morgan Stanley','BlackRock','Vanguard','Fidelity','Wells Fargo','Bank of America','Citigroup'];
+  const cons = ['McKinsey','Bain','BCG','Deloitte','PwC','EY','KPMG','Accenture'];
+  if (tech.includes(company)) return 'Software Engineering';
+  if (fin.includes(company)) return 'Finance';
+  if (cons.includes(company)) return 'Consulting';
   return 'Other';
 }
-
 function updateLargestCluster() {
   const cluster = analyzeIndustryClusters();
   const clusterDiv = document.getElementById('largest-cluster');
-  if (clusterDiv) {
-    clusterDiv.innerHTML = `Largest cluster: ${cluster.industry} (${cluster.count} people)`;
-  }
+  if (clusterDiv) clusterDiv.innerHTML = `Largest cluster: ${cluster.industry} (${cluster.count} people)`;
 }
-
 updateLargestCluster();
 
 // Animation loop
 function animate(){
   requestAnimationFrame(animate);
-
-  // Gentle float animation (skip dragged and hovered)
   const t = performance.now()*0.001;
   nodeObjs.forEach((node, id)=>{
     if(node === draggedNode || node === hoveredNode) return;
-    const a = nodeAnimations.get(id); 
-    if(!a) return;
-    
-    // Keep X and Y floating consistent between 2D and 3D modes
+    const a = nodeAnimations.get(id); if(!a) return;
     const fx = Math.sin(t*a.frequency + a.timeOffset) * a.amplitude * 0.3;
     const fy = Math.sin(t*a.frequency*0.7 + a.timeOffset + Math.PI/3) * a.amplitude * 0.3;
-    
-    let fz;
-    if (is3DMode) {
-      // 3D mode - add Z movement
-      fz = Math.sin(t*a.frequency*0.5 + a.timeOffset + Math.PI/2) * a.amplitude * 0.4;
-    } else {
-      // 2D mode - no Z movement
-      fz = 0;
-    }
-
-    // Apply floating animation
+    const fz = is3DMode ? Math.sin(t*a.frequency*0.5 + a.timeOffset + Math.PI/2) * a.amplitude * 0.4 : 0;
     node.position.set(a.originalPos.x + fx, a.originalPos.y + fy, a.originalPos.z + fz);
-    
-    // In 2D mode, force Z to stay at 0
-    if (!is3DMode) {
-      node.position.z = 0;
-    }
-    
-    // Ensure profile pictures always render on top in both 2D and 3D modes
+    if (!is3DMode) node.position.z = 0;
     node.children.forEach(child => {
-      if (child.userData.isBillboard && child.material) {
-        // Force profile pictures to always be on top
-        child.renderOrder = 100; // Very high render order
+      if (child.userData?.isBillboard && child.material) {
+        child.renderOrder = 100;
         child.material.depthWrite = true;
         child.material.depthTest = true;
+        child.material.transparent = false;
+        child.material.opacity = 1.0;
+        const worldPosition = new THREE.Vector3();
+        child.getWorldPosition(worldPosition);
+        const lookAtMatrix = new THREE.Matrix4();
+        lookAtMatrix.lookAt(worldPosition, camera.position, camera.up);
+        const quaternion = new THREE.Quaternion();
+        quaternion.setFromRotationMatrix(lookAtMatrix);
+        child.quaternion.copy(quaternion);
       }
     });
-
     const s = 1 + Math.sin(t*a.scaleFrequency + a.timeOffset)*a.scaleAmplitude;
     node.scale.setScalar(s);
     node.rotation.z = Math.sin(t*0.2 + a.timeOffset)*0.1;
-    
-    // Pulsing glow effect
+
     if(a.outerGlow && a.innerGlow && a.core) {
       const glowPulse = 1 + Math.sin(t*0.8 + a.timeOffset) * 0.3;
       const opacityPulse = 0.1 + Math.sin(t*1.2 + a.timeOffset) * 0.05;
-      
       a.outerGlow.scale.setScalar(glowPulse);
       a.outerGlow.material.opacity = opacityPulse;
       a.innerGlow.scale.setScalar(glowPulse * 0.8);
       a.innerGlow.material.opacity = 0.3 + Math.sin(t*1.5 + a.timeOffset) * 0.1;
       a.core.scale.setScalar(glowPulse * 0.6);
     }
-    
-    // Billboard rotation for profile picture planes and glow effects
-    node.children.forEach(child => {
-      if (child.userData.isBillboard) {
-        // Make both profile pictures and glow effects always face the camera directly
-        const worldPosition = new THREE.Vector3();
-        child.getWorldPosition(worldPosition);
-        
-        // Calculate direction from child to camera
-        const direction = new THREE.Vector3().subVectors(camera.position, worldPosition);
-        direction.normalize();
-        
-        // Create a look-at matrix to face the camera directly
-        const lookAtMatrix = new THREE.Matrix4();
-        lookAtMatrix.lookAt(worldPosition, camera.position, camera.up);
-        
-        // Extract rotation from the look-at matrix
-        const quaternion = new THREE.Quaternion();
-        quaternion.setFromRotationMatrix(lookAtMatrix);
-        
-        // Apply the rotation to make it face the camera directly
-        child.quaternion.copy(quaternion);
-        
-        // Ensure profile pictures always render on top and occlude edges
-        child.renderOrder = 100; // Very high render order
-        if (child.material) {
-          child.material.depthWrite = true;
-          child.material.depthTest = true;
-          child.material.transparent = false; // Ensure solid occlusion
-          child.material.opacity = 1.0; // Ensure full opacity
-        }
-      }
-    });
   });
 
-  // Update optimal path cylinder positions when nodes move
+  // Update optimal path cylinders
   if (currentOptimalPath && currentOptimalPath.edges.size > 0) {
     edgeGroup.children.forEach(child => {
-      if (child.userData && child.userData.isOptimalEdge) {
-        const edgeKey = child.userData.edgeKey;
-        const [sourceId, targetId] = edgeKey.split('-');
+      if (child.userData?.isOptimalEdge) {
+        const [sourceId, targetId] = child.userData.edgeKey.split('-');
         const sourceNode = nodeObjs.get(sourceId);
         const targetNode = nodeObjs.get(targetId);
-        
         if (sourceNode && targetNode) {
-          // Update cylinder position and rotation
           const direction = new THREE.Vector3().subVectors(targetNode.position, sourceNode.position);
           const length = direction.length();
           const midpoint = new THREE.Vector3().addVectors(sourceNode.position, targetNode.position).multiplyScalar(0.5);
-          
           child.position.copy(midpoint);
           child.lookAt(targetNode.position);
           child.rotateX(Math.PI / 2);
-          
-          // Update cylinder scale to match new length
           child.scale.set(1, length / child.geometry.parameters.height, 1);
         }
       }
     });
   }
-  
-  // Slow clockwise rotation of the entire network around the "You" node
+
+  // Gentle spin in 3D
   if (is3DMode) {
-    // Rotate all nodes around the Y-axis (vertical axis) with "You" node as center
     const youNode = nodeObjs.get('me');
     if (youNode) {
       const youPosition = youNode.position.clone();
-      
       nodeObjs.forEach((node, nodeId) => {
-        if (nodeId !== 'me') { // Don't rotate the "You" node itself
-          // Get relative position from "You" node
+        if (nodeId !== 'me') {
           const relativePos = node.position.clone().sub(youPosition);
-          
-          // Apply rotation around Y-axis
           const rotationMatrix = new THREE.Matrix4().makeRotationY(networkRotationSpeed);
           relativePos.applyMatrix4(rotationMatrix);
-          
-          // Set new position relative to "You" node
           node.position.copy(youPosition.clone().add(relativePos));
         }
       });
     }
   }
 
-  // Add pulsing scale animation for all highlighted nodes in optimal path
+  // Pulse highlights
   highlightedNodes.forEach(nodeId => {
-    if (nodeId !== 'me') {
-      const node = nodeObjs.get(nodeId);
-      if (node) {
-        const pulseScale = 1 + Math.sin(t * 2) * 0.2; // Pulsing scale animation
-        node.scale.setScalar(pulseScale);
-        
-        // Also pulse the glow effects with correct colors
-        node.children.forEach(child => {
-          if (child.userData.isGlow) {
-            // Make target node glow slightly larger for emphasis
-            const isTarget = nodeId === currentTarget;
-            const glowPulse = isTarget ? 
-              1 + Math.sin(t * 2.5) * 0.4 : // Larger pulse for target node
-              1 + Math.sin(t * 2.5) * 0.3;  // Normal pulse for intermediate nodes
-            const opacityPulse = 0.5 + Math.sin(t * 1.8) * 0.3; // Pulse opacity too
-            child.scale.setScalar(glowPulse);
-            child.material.opacity = Math.min(opacityPulse, 1.0);
-            
-            // Apply correct color based on node position in path
-            if (nodeId === currentTarget) {
-              // Target node - bright orange
-              child.material.color.setHex(0xFF7043);
-            } else if (currentOptimalPath.path.includes(nodeId)) {
-              // Intermediate node - yellow
-              child.material.color.setHex(0xffd700);
-            } else {
-              // Default color
-              const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
-              child.material.color.setHex(originalColor);
-            }
-          }
-        });
+    if (nodeId === 'me') return;
+    const node = nodeObjs.get(nodeId);
+    if (!node) return;
+    const pulseScale = 1 + Math.sin(t * 2) * 0.2;
+    node.scale.setScalar(pulseScale);
+    node.children.forEach(child => {
+      if (child.userData?.isGlow) {
+        const isTarget = nodeId === currentTarget;
+        const glowPulse = isTarget ? 1 + Math.sin(t * 2.5) * 0.4 : 1 + Math.sin(t * 2.5) * 0.3;
+        const opacityPulse = 0.5 + Math.sin(t * 1.8) * 0.3;
+        child.scale.setScalar(glowPulse);
+        child.material.opacity = Math.min(opacityPulse, 1.0);
+        if (nodeId === currentTarget) child.material.color.setHex(0xFF7043);
+        else if (currentOptimalPath.path.includes(nodeId)) child.material.color.setHex(0xffd700);
+        else child.material.color.setHex(nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF);
       }
-    }
+    });
   });
-  
-  // Reset non-highlighted nodes to original state
+
+  // Reset others
   nodeObjs.forEach((node, nodeId) => {
     if (!highlightedNodes.has(nodeId) && nodeId !== 'me') {
-      // Reset scale to normal
       node.scale.setScalar(1);
-      
-      // Reset glow effects to original colors and opacity
       node.children.forEach(child => {
-        if (child.userData.isGlow) {
+        if (child.userData?.isGlow) {
           const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
           child.material.color.setHex(originalColor);
-          
-          // Reset to original opacity based on glow layer
           const originalOpacities = nodeId === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
           child.material.opacity = originalOpacities[child.userData.glowIndex] || 0.3;
-          child.scale.setScalar(1); // Reset glow scale
+          child.scale.setScalar(1);
         }
       });
     }
@@ -1585,5 +1172,279 @@ window.addEventListener("resize", ()=>{
   renderer.setSize(window.innerWidth, window.innerHeight);
   labelRenderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+/* ================
+ * NL CHAT WIRING
+ * ================
+ * Elements expected in DOM:
+ *   <input id="llmInput" />
+ *   <button id="llmButton">Ask</button>
+ *   (optional) <div id="llmOutput"></div>
+ */
+const llm_search = document.getElementById('llmInput');
+const llm_button = document.getElementById('llmButton');
+const llm_output = document.getElementById('llmOutput');
+
+function setLLMStatus(text) {
+  if (llm_output) llm_output.textContent = text;
+  else console.log('[LLM]', text);
+}
+
+/* Resolve LLM result to a node in our graph */
+function resolveTargetNodeFromLLM({ target_name, target_company, keywords }) {
+  if (!sample?.nodes?.length) return null;
+  const hay = sample.nodes.filter(n => n.id !== 'me');
+  if (!hay.length) return null;
+
+  const norm = s => (s||'').toLowerCase().trim();
+
+  const tn = norm(target_name);
+  const tc = norm(target_company);
+
+  // Scoring heuristic
+  let best = null;
+  let bestScore = -1;
+
+  for (const n of hay) {
+    let score = 0;
+    const name = norm(n.name);
+    const company = norm(n.company);
+
+    if (tn) {
+      if (name === tn) score += 10;
+      else if (name.includes(tn)) score += 6;
+      // First/last name partial matches:
+      const tnParts = tn.split(/\s+/).filter(Boolean);
+      let partsHit = 0;
+      tnParts.forEach(p => { if (name.includes(p)) partsHit++; });
+      score += Math.min(partsHit, 2); // +0..2
+    }
+
+    if (tc) {
+      if (company === tc) score += 5;
+      else if (company.includes(tc)) score += 3;
+    }
+
+    // Keywords bonus (if any)
+    if (Array.isArray(keywords)) {
+      const joined = `${name} ${company}`.toLowerCase();
+      const hits = keywords.reduce((acc, k) => acc + (joined.includes(norm(k)) ? 1 : 0), 0);
+      score += Math.min(hits, 3);
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = n;
+    }
+  }
+
+  // Threshold: if we looked for a person name, require at least some signal.
+  if (tn && bestScore < 3) return null;
+  return best;
+}
+
+// ---------- OpenAI helpers ----------
+const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
+const OPENAI_MODEL = 'gpt-4o-mini'; // stable + supports JSON mode
+
+async function getOpenAIKey() {
+  // Prefer loading from extension storage or env injected at build time
+  // e.g., const { openaiKey } = await chrome.storage.sync.get('openaiKey');
+  // return openaiKey;
+  return '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'; // <-- PUT NOTHING SENSITIVE IN SOURCE. Load at runtime.
+}
+
+async function chatJSON(messages, { model = OPENAI_MODEL, temperature = 0 } = {}) {
+  const key = await getOpenAIKey();
+  if (!key) throw new Error('Missing OpenAI API key. Store it in chrome.storage and load with getOpenAIKey().');
+
+  const res = await fetch(OPENAI_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${key}`
+    },
+    body: JSON.stringify({
+      model,
+      temperature,
+      response_format: { type: 'json_object' }, // JSON mode
+      messages
+    })
+  });
+
+  let payload;
+  try { payload = await res.json(); } catch { /* ignore */ }
+
+  if (!res.ok) {
+    const msg = payload?.error?.message || `HTTP ${res.status}`;
+    throw new Error(`[OpenAI ${model}] ${msg}`);
+  }
+
+  const text = payload?.choices?.[0]?.message?.content || '';
+  // Safe parse helper
+  const json = (() => {
+    try { return JSON.parse(text); } catch { return null; }
+  })();
+  if (!json) throw new Error(`[OpenAI ${model}] Expected JSON, got: ${text.slice(0, 200)}`);
+  return json;
+}
+
+// ---------- Your router/user msg builders must exist ----------
+/* expected:
+   const ROUTER_SYSTEM_PROMPT = `...must return {"action":"path"|"search", ...}`;
+   function buildRouterUserMessage(query, knownPeople) { ... }
+   function resolveTargetNodeFromLLM(obj) { ... }
+   function linkedinSearchDummy({ keywords, query }) { ... }
+   function setLLMStatus(s) { ... }  function toast(s) { ... }
+*/
+
+// ---------- Main handler (2 OpenAI calls) ----------
+async function handleNLQuery(query) {
+  if (!query || !query.trim()) return;
+
+  // Build known-people context (cap to avoid prompt bloat)
+  const knownPeople = (sample?.nodes || [])
+    .slice(0, 80)
+    .map(n => ({ name: n?.name || '', company: n?.company || '' }));
+
+  // --- Call #1: ROUTER (path vs search) ---
+  const routerMessages = [
+    { role: 'system', content: ROUTER_SYSTEM_PROMPT },
+    { role: 'user', content: buildRouterUserMessage(query, knownPeople) }
+  ];
+
+  setLLMStatus('Routing…');
+
+  let routing;
+  try {
+    routing = await chatJSON(routerMessages, { model: OPENAI_MODEL, temperature: 0 });
+  } catch (err) {
+    console.error('[Router] error:', err);
+  }
+
+  // Fallback if router fails
+  if (!routing || !routing.action) {
+    const q = query.toLowerCase();
+    const isPathy = /(introduce|intro|reach|to\s+talk\s+to|connect\s+me\s+to|path|route|how do i get to)/.test(q);
+    routing = {
+      action: isPathy ? 'path' : 'search',
+      reason: 'heuristic_fallback',
+      target_name: null,
+      target_company: null,
+      keywords: [],
+      query
+    };
+  }
+
+  console.log('[Router Result]', routing);
+  setLLMStatus(`${routing.action.toUpperCase()}: ${routing.reason || ''}`);
+
+  // --- Call #2: ACTION DETAILS (path OR search blueprint) ---
+  let details = null;
+  try {
+    if (routing.action === 'path') {
+      const PATH_SYSTEM_PROMPT = `
+You help pick a single target person already in a LinkedIn graph.
+Return STRICT JSON ONLY:
+{
+  "target_name": string | null,
+  "target_company": string | null,
+  "reason": string
+}
+Choose the best candidate from the provided known people list (name + optional company).
+If no good match, set both target fields to null.
+`.trim();
+
+      const pathUserMsg = `
+User query: "${query}"
+
+Known people (subset):
+${knownPeople.map(p => `- ${p.name}${p.company ? ' @ ' + p.company : ''}`).join('\n')}
+`.trim();
+
+      setLLMStatus('Selecting target…');
+      details = await chatJSON(
+        [
+          { role: 'system', content: PATH_SYSTEM_PROMPT },
+          { role: 'user', content: pathUserMsg }
+        ],
+        { model: OPENAI_MODEL, temperature: 0 }
+      );
+      console.log('[Path Details]', details);
+
+    } else {
+      const SEARCH_SYSTEM_PROMPT = `
+You design a LinkedIn people search plan.
+Return STRICT JSON ONLY:
+{
+  "keywords": string[],          // 1-8 concise keywords/phrases
+  "companies": string[],         // 0-8 normalized company names
+  "titles": string[],            // 0-8 job titles/roles
+  "locations": string[],         // 0-5 city/region strings
+  "seniorities": string[],       // subset of ["intern","junior","mid","senior","lead","manager","director","vp","cxo"]
+  "linkedin_query": string,      // single-line boolean query (e.g., title:(PM OR "product manager") AND company:(Stripe OR Google))
+  "reason": string
+}
+Keep values short. If a field is irrelevant, return an empty array or empty string.
+`.trim();
+
+      const searchUserMsg = `User query: "${routing.query || query}"`.trim();
+
+      setLLMStatus('Drafting search…');
+      details = await chatJSON(
+        [
+          { role: 'system', content: SEARCH_SYSTEM_PROMPT },
+          { role: 'user', content: searchUserMsg }
+        ],
+        { model: OPENAI_MODEL, temperature: 0 }
+      );
+      console.log('[Search Details]', details);
+    }
+  } catch (err) {
+    console.error('[Action Details] error:', err);
+  }
+
+  if (!details) details = {};
+
+  // ----- Execute chosen action -----
+  if (routing.action === 'path') {
+    const merged = {
+      action: 'path',
+      query: routing.query || query,
+      target_name: details.target_name ?? routing.target_name ?? null,
+      target_company: details.target_company ?? routing.target_company ?? null,
+      keywords: routing.keywords || []
+    };
+
+    const targetNode = resolveTargetNodeFromLLM(merged);
+    if (targetNode) {
+      toast(`Finding optimal path to ${targetNode.name}…`);
+      updateOptimalPath(targetNode.id);
+      setLLMStatus(`PATH → ${targetNode.name}`);
+    } else {
+      toast(`Couldn't find "${merged.target_name || merged.target_company || 'target'}" in your graph. Running LinkedIn search instead.`);
+      const kw = merged.keywords?.length ? merged.keywords : [merged.target_name, merged.target_company].filter(Boolean);
+      linkedinSearchDummy({ keywords: kw, query: merged.query });
+      setLLMStatus('SEARCH (fallback) started');
+    }
+
+  } else if (routing.action === 'search') {
+    const keywords = Array.isArray(details.keywords) ? details.keywords : [];
+    const compiled = details.linkedin_query || (routing.query || query);
+    linkedinSearchDummy({ keywords: keywords.length ? keywords : [routing.query || query], query: compiled });
+    setLLMStatus('SEARCH started');
+
+  } else {
+    linkedinSearchDummy({ keywords: [], query });
+    setLLMStatus('SEARCH (default) started');
+  }
+}
+
+
+// Wire the NL button
+if (llm_button && llm_search) {
+  llm_button.addEventListener('click', () => handleNLQuery(llm_search.value));
+  llm_search.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleNLQuery(llm_search.value); });
+}
 
 console.log('Three.js Network Visualizer loaded successfully!');

@@ -41,6 +41,10 @@
       white-space: nowrap;
       pointer-events: none;
     }
+    .llm-search { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; gap:8px; background:rgba(14,18,40,0.7); padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); width:550px; max-width:90%; }
+    .llm-search input { flex:1; background:#101732; color:#e8ecf1; border:1px solid rgba(255,255,255,0.18); padding:6px 10px; border-radius:8px; }
+    .llm-search button { background:#4da6ff; color:#0b1020; border:none; padding:12px 24px; border-radius:8px; font-weight:600; cursor:pointer; transition:background 0.2s ease; }
+    .llm-search button:hover { background:#3390ff; }
   </style>
 </head>
 <body>
@@ -53,6 +57,12 @@
       <button id="viewToggle2d" class="toggle-btn" data-mode="2d">2D</button>
     </div>
   </div>
+
+  <div class="llm-search">
+    <input id="llmInput" placeholder="Ask me anything about your network…" />
+    <button id="llmButton">Ask</button>
+  </div>
+
   <div class="sidebar">
     <h3>Top Insights</h3>
     <div class="insight" id="largest-cluster">Largest cluster: Loading...</div>

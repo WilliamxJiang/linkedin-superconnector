@@ -163,7 +163,7 @@ function openNetworkVisualizer() {
     }
 
     // Show loading bar for 15 seconds
-    const loader = showNetworkLoadingBar(5000, '#0b1020');
+    const loader = showNetworkLoadingBar(2000, '#0b1020');
 
     if (typeof window.CONNECTIONS_IFRAME !== 'undefined' && window.CONNECTIONS_IFRAME) {
     //   const intervalId = startAutoClickLoadMore({ text: "load more", partial: false, interval: 1200 }, window.CONNECTIONS_IFRAME);
@@ -234,7 +234,7 @@ function openNetworkVisualizer() {
         document.body.appendChild(container);
         
         console.log('Network visualizer opened successfully');
-      }, 5000); 
+      }, 2000); 
 
     } else {
       console.warn('CONNECTIONS_IFRAME not available yet');
