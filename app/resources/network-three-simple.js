@@ -945,6 +945,7 @@ function highlightNode(nodeId, highlightType = 'none') {
     }
   } else {
     // Clear highlighting
+    console.log(`Clearing highlighting for node ${nodeId}, restoring to original color: ${originalColor.toString(16)}`);
     highlightedNodes.delete(nodeId);
     node.children.forEach(child => {
       if (child.material) {
@@ -988,6 +989,7 @@ function updateOptimalPath(targetId) {
   }
   
   // Clear previous highlights
+  console.log(`Clearing previous highlights for single path. Highlighted nodes:`, Array.from(highlightedNodes));
   highlightedNodes.forEach(nodeId => highlightNode(nodeId, 'none'));
   highlightedNodes.clear();
   
@@ -1085,6 +1087,7 @@ function updateOptimalPath(targetId) {
 // Update multiple optimal paths for a company
 function updateMultipleOptimalPaths(companyName, companyNodes) {
   // Clear previous highlights
+  console.log(`Clearing previous highlights for multiple paths. Highlighted nodes:`, Array.from(highlightedNodes));
   highlightedNodes.forEach(nodeId => highlightNode(nodeId, 'none'));
   highlightedNodes.clear();
   
