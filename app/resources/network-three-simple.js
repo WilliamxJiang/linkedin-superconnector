@@ -458,11 +458,11 @@ sample.nodes.forEach((n, idx) => {
       });
 
       core = new THREE.Mesh(nodeGeometry, nodeMaterial);
-      core.renderOrder = 100; // Profile picture renders on top of everything
       core.material.depthWrite = true;
       core.material.depthTest = true;
       core.material.transparent = false; // Ensure solid occlusion
       core.material.opacity = 1.0; // Ensure full opacity
+      core.renderOrder = 10; // Profile picture renders on top of glows
       
       // Add multiple glow layers around profile picture for better color effect
       console.log(`Creating glows for node ${n.id} with profile picture`);
@@ -490,8 +490,8 @@ sample.nodes.forEach((n, idx) => {
         }
         
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        glow.position.z = -0.1 - (index * 0.05); // Slightly behind the profile picture
-        glow.renderOrder = 1; // Glow renders behind profile picture but above edges
+        glow.position.z = -0.5 - (index * 0.1); // Much further behind the profile picture
+        glow.renderOrder = -1; // Glow renders behind profile picture
         glow.userData.isGlow = true;
         glow.userData.isBillboard = true; // Make glow also billboard
         glow.userData.glowIndex = index;
