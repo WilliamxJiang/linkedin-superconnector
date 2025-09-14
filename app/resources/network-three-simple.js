@@ -1988,14 +1988,16 @@ function animate(){
   // Add gentle pulsing animation to all glow rings
   nodeObjs.forEach((node, nodeId) => {
     node.children.forEach(child => {
-      if (child.userData.isGlow && !child.userData.isHighlighted) {
-        // Gentle pulsing animation for glow rings
-        const glowPulse = 1 + Math.sin(t * 0.8) * 0.15; // Slow, gentle pulse
-        const opacityPulse = 0.6 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
-        child.scale.setScalar(glowPulse);
-        child.material.opacity = Math.min(opacityPulse, 0.8);
+      if (child.userData.isGlow) {
+        // Gentle pulsing animation for glow rings (only for non-highlighted nodes)
+        if (!child.userData.isHighlighted) {
+          const glowPulse = 1 + Math.sin(t * 0.8) * 0.15; // Slow, gentle pulse
+          const opacityPulse = 0.6 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
+          child.scale.setScalar(glowPulse);
+          child.material.opacity = Math.min(opacityPulse, 0.8);
+        }
         
-        // Make glow rings always face the camera
+        // Make glow rings always face the camera (for ALL glow rings, including highlighted ones)
         const worldPosition = new THREE.Vector3();
         child.getWorldPosition(worldPosition);
         
