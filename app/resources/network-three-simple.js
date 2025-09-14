@@ -884,6 +884,13 @@ function highlightNode(nodeId, highlightType = 'none') {
     console.log(`Clearing highlighting for node ${nodeId}, restoring to original color: ${originalColor.toString(16)}`);
     highlightedNodes.delete(nodeId);
     
+    // Hide the node's label (except for 'me' node)
+    if (nodeId !== 'me' && node.userData && node.userData.label) {
+      node.userData.label.style.display = 'none';
+      node.userData.label.style.visibility = 'hidden';
+      node.userData.label.style.opacity = '0';
+    }
+    
     // Handle profile picture and glow children
     node.children.forEach(child => {
       if (child.material) {
