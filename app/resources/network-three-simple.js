@@ -993,6 +993,15 @@ function updateOptimalPath(targetId) {
   highlightedNodes.forEach(nodeId => highlightNode(nodeId, 'none'));
   highlightedNodes.clear();
   
+  // Clear hidden nodes to ensure all nodes are visible
+  hiddenNodes.forEach(nodeId => {
+    const node = nodeObjs.get(nodeId);
+    if (node) {
+      node.visible = true;
+    }
+  });
+  hiddenNodes.clear();
+  
   currentTarget = targetId;
   currentOptimalPath = findOptimalPathToTarget(targetId);
   
@@ -1090,6 +1099,15 @@ function updateMultipleOptimalPaths(companyName, companyNodes) {
   console.log(`Clearing previous highlights for multiple paths. Highlighted nodes:`, Array.from(highlightedNodes));
   highlightedNodes.forEach(nodeId => highlightNode(nodeId, 'none'));
   highlightedNodes.clear();
+  
+  // Clear hidden nodes to ensure all nodes are visible
+  hiddenNodes.forEach(nodeId => {
+    const node = nodeObjs.get(nodeId);
+    if (node) {
+      node.visible = true;
+    }
+  });
+  hiddenNodes.clear();
   
   // Find all optimal paths to the company
   const multiplePaths = findAllOptimalPathsToCompany(companyName);
@@ -1532,8 +1550,18 @@ function showOnlyOptimalPathNodes() {
     return;
   }
   
+  // Clear previous hidden nodes first to ensure clean state
+  hiddenNodes.forEach(nodeId => {
+    const node = nodeObjs.get(nodeId);
+    if (node) {
+      node.visible = true;
+    }
+  });
+  hiddenNodes.clear();
+  
   // Get all nodes that should be visible (You + optimal path nodes)
   const visibleNodeIds = new Set(['me', ...currentOptimalPath.path]);
+  console.log(`Path-only mode: Visible nodes for current path:`, Array.from(visibleNodeIds));
   
   // Hide all nodes first
   nodeObjs.forEach((node, nodeId) => {
@@ -1572,11 +1600,21 @@ function showOnlyMultiplePathsNodes() {
     return;
   }
   
+  // Clear previous hidden nodes first to ensure clean state
+  hiddenNodes.forEach(nodeId => {
+    const node = nodeObjs.get(nodeId);
+    if (node) {
+      node.visible = true;
+    }
+  });
+  hiddenNodes.clear();
+  
   // Get all nodes that should be visible (You + all path nodes)
   const visibleNodeIds = new Set(['me']);
   currentMultiplePaths.paths.forEach(pathData => {
     pathData.path.forEach(nodeId => visibleNodeIds.add(nodeId));
   });
+  console.log(`Path-only mode: Visible nodes for multiple paths:`, Array.from(visibleNodeIds));
   
   // Hide all nodes first
   nodeObjs.forEach((node, nodeId) => {
