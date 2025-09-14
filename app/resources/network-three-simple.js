@@ -338,6 +338,7 @@ scene.add(nodeGroup, edgeGroup);
 const nodeObjs = new Map();
 const nodeAnimations = new Map();
 let currentOptimalPath = { edges: new Set(), path: [] };
+let currentMultiplePaths = { paths: [], allEdges: new Set(), companyName: '' };
 let currentTarget = null;
 let highlightedNodes = new Set();
 let is3DMode = true; // Track current view mode
@@ -687,6 +688,56 @@ function zoomToOptimalPath() {
   animateCamera();
 }
 
+// Zoom in on multiple optimal paths
+function zoomToMultiplePaths() {
+  if (!currentMultiplePaths || currentMultiplePaths.paths.length === 0) return;
+  
+  // Get all nodes in all paths
+  const allPathNodes = new Set();
+  currentMultiplePaths.paths.forEach(pathData => {
+    pathData.path.forEach(nodeId => allPathNodes.add(nodeId));
+  });
+  
+  const pathNodes = Array.from(allPathNodes).map(nodeId => nodeObjs.get(nodeId)).filter(node => node);
+  
+  if (pathNodes.length === 0) return;
+  
+  // Calculate bounding box for all path nodes
+  const box = new THREE.Box3().setFromPoints(pathNodes.map(node => node.position));
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const distance = maxDim * 2;
+  
+  // Animate camera to focus on the paths
+  const targetPosition = center.clone();
+  targetPosition.z += distance;
+  
+  // Store original camera position for smooth animation
+  const originalPosition = camera.position.clone();
+  const originalTarget = controls.target.clone();
+  
+  // Animate camera movement
+  const startTime = Date.now();
+  const duration = 1000; // 1 second animation
+  
+  function animateCamera() {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const easeProgress = 1 - Math.pow(1 - progress, 3); // Ease out cubic
+    
+    camera.position.lerpVectors(originalPosition, targetPosition, easeProgress);
+    controls.target.lerpVectors(originalTarget, center, easeProgress);
+    controls.update();
+    
+    if (progress < 1) {
+      requestAnimationFrame(animateCamera);
+    }
+  }
+  
+  animateCamera();
+}
+
 // Find optimal path from 'me' to a specific target node
 function findOptimalPathToTarget(targetId) {
   if (targetId === 'me') return { edges: new Set(), path: ['me'] };
@@ -726,6 +777,43 @@ function findOptimalPathToTarget(targetId) {
   }
   
   return { edges: new Set(), path: [] };
+}
+
+// Find all optimal paths to a company (multiple people at same company)
+function findAllOptimalPathsToCompany(companyName) {
+  // Find all nodes that work at this company
+  const companyNodes = sample.nodes.filter(node => 
+    node.company && node.company.toLowerCase().includes(companyName.toLowerCase())
+  );
+  
+  if (companyNodes.length === 0) {
+    return { paths: [], allEdges: new Set() };
+  }
+  
+  const allPaths = [];
+  const allEdges = new Set();
+  
+  // Find optimal path to each person at the company
+  companyNodes.forEach(targetNode => {
+    const path = findOptimalPathToTarget(targetNode.id);
+    if (path.path.length > 0) {
+      allPaths.push({
+        targetId: targetNode.id,
+        targetName: targetNode.name,
+        path: path.path,
+        edges: path.edges,
+        weight: path.weight || 0
+      });
+      
+      // Add edges to the combined set
+      path.edges.forEach(edge => allEdges.add(edge));
+    }
+  });
+  
+  // Sort paths by weight (best paths first)
+  allPaths.sort((a, b) => b.weight - a.weight);
+  
+  return { paths: allPaths, allEdges: allEdges };
 }
 
 function updateEdges(){
@@ -942,6 +1030,92 @@ function updateOptimalPath(targetId) {
   }
 }
 
+// Update multiple optimal paths for a company
+function updateMultipleOptimalPaths(companyName, companyNodes) {
+  // Clear previous highlights
+  highlightedNodes.forEach(nodeId => highlightNode(nodeId, 'none'));
+  highlightedNodes.clear();
+  
+  // Find all optimal paths to the company
+  const multiplePaths = findAllOptimalPathsToCompany(companyName);
+  
+  currentTarget = null; // No single target for multiple paths
+  currentOptimalPath = { edges: new Set(), path: [] };
+  currentMultiplePaths = {
+    paths: multiplePaths.paths,
+    allEdges: multiplePaths.allEdges,
+    companyName: companyName
+  };
+  
+  // Highlight all nodes in all paths
+  multiplePaths.paths.forEach((pathData, index) => {
+    pathData.path.forEach((nodeId, nodeIndex) => {
+      if (nodeId !== 'me') {
+        if (nodeId === pathData.targetId) {
+          // Target node - bright orange
+          highlightNode(nodeId, 'target');
+        } else {
+          // Intermediate node - yellow
+          highlightNode(nodeId, 'intermediate');
+        }
+      }
+    });
+  });
+  
+  // Update edge colors and create thick cylinders for all optimal paths
+  sample.edges.forEach(e => {
+    const line = edgeLines.get(`${e.source}-${e.target}`);
+    if (!line) return;
+    
+    const isOptimal = multiplePaths.allEdges.has(`${e.source}-${e.target}`);
+    
+    if (isOptimal) {
+      // Hide the original line and create a thick cylinder
+      line.visible = false;
+      
+      // Create thick cylinder for optimal path
+      const s = nodeObjs.get(e.source);
+      const t = nodeObjs.get(e.target);
+      if (s && t) {
+        const cylinder = new THREE.CylinderGeometry(2, 2, s.position.distanceTo(t.position), 8);
+        const cylinderMaterial = new THREE.MeshBasicMaterial({ 
+          color: 0xFFD700, 
+          transparent: true, 
+          opacity: 0.8 
+        });
+        const cylinderMesh = new THREE.Mesh(cylinder, cylinderMaterial);
+        
+        // Position cylinder between nodes
+        const midPoint = new THREE.Vector3().addVectors(s.position, t.position).multiplyScalar(0.5);
+        cylinderMesh.position.copy(midPoint);
+        cylinderMesh.lookAt(t.position);
+        cylinderMesh.rotateX(Math.PI / 2);
+        
+        cylinder.renderOrder = -5; // Render cylinders behind nodes but above regular edges
+        
+        // Store reference to remove later
+        cylinder.userData = { isOptimalEdge: true, edgeKey: `${e.source}-${e.target}` };
+        edgeGroup.add(cylinder);
+      }
+    } else {
+      // Reset non-optimal edges to default
+      line.visible = true;
+      const color = 0x9aa7c6;
+      const opacity = 0.6;
+      line.material.color.setHex(color);
+      line.material.opacity = opacity;
+    }
+  });
+  
+  // Update sidebar info
+  updateMultiplePathsSidebarInfo();
+  
+  // If path-only mode is active, update the visible nodes
+  if (isPathOnlyMode) {
+    showOnlyMultiplePathsNodes();
+  }
+}
+
 function updateSidebarInfo() {
   const optimalPathDiv = document.querySelector('.optimal-path-info');
   if (!optimalPathDiv) return;
@@ -967,6 +1141,36 @@ function updateSidebarInfo() {
   // Add click event listener for zoom functionality
   optimalPathDiv.style.cursor = 'pointer';
   optimalPathDiv.onclick = zoomToOptimalPath;
+}
+
+// Update sidebar info for multiple paths
+function updateMultiplePathsSidebarInfo() {
+  const optimalPathDiv = document.querySelector('.optimal-path-info');
+  if (!optimalPathDiv) return;
+  
+  if (!currentMultiplePaths || currentMultiplePaths.paths.length === 0) {
+    optimalPathDiv.style.display = 'none';
+    return;
+  }
+  
+  const pathNames = currentMultiplePaths.paths.map(pathData => {
+    const pathNodeNames = pathData.path.map(id => {
+      const node = sample.nodes.find(n => n.id === id);
+      return node ? node.name : id;
+    });
+    return `${pathNodeNames.join(' → ')} (${pathData.targetName})`;
+  });
+  
+  optimalPathDiv.style.display = 'block';
+  optimalPathDiv.innerHTML = `
+    <strong>Optimal Paths to ${currentMultiplePaths.companyName}:</strong><br>
+    ${pathNames.join('<br>')}<br>
+    <em style="color: #FFD700; cursor: pointer; text-decoration: underline;">Click to zoom in on paths</em>
+  `;
+  
+  // Add click event listener for zoom functionality
+  optimalPathDiv.style.cursor = 'pointer';
+  optimalPathDiv.onclick = zoomToMultiplePaths;
 }
 
 // Hover effect functions
@@ -1174,19 +1378,32 @@ function searchAndHighlight() {
   const searchTerm = searchInput.value.toLowerCase().trim();
   if (!searchTerm) return;
   
+  // First try to find a specific person by name
   const matchingNode = sample.nodes.find(node => 
-    node.name.toLowerCase().includes(searchTerm) || 
-    (node.company && node.company.toLowerCase().includes(searchTerm))
+    node.name.toLowerCase().includes(searchTerm)
   );
   
   if (matchingNode) {
-    console.log('Found matching node:', matchingNode);
+    console.log('Found matching person:', matchingNode);
     updateOptimalPath(matchingNode.id);
-  } else {
-    const availableNames = sample.nodes.map(n => n.name).join(', ');
-    const availableCompanies = sample.nodes.filter(n => n.company).map(n => n.company).join(', ');
-    alert(`No match found for "${searchTerm}".\n\nTry:\nNames: ${availableNames}\nCompanies: ${availableCompanies}`);
+    return;
   }
+  
+  // If no person found, try to find by company
+  const companyNodes = sample.nodes.filter(node => 
+    node.company && node.company.toLowerCase().includes(searchTerm)
+  );
+  
+  if (companyNodes.length > 0) {
+    console.log(`Found ${companyNodes.length} people at company:`, companyNodes);
+    updateMultipleOptimalPaths(searchTerm, companyNodes);
+    return;
+  }
+  
+  // No matches found
+  const availableNames = sample.nodes.map(n => n.name).join(', ');
+  const availableCompanies = sample.nodes.filter(n => n.company).map(n => n.company).join(', ');
+  alert(`No match found for "${searchTerm}".\n\nTry:\nNames: ${availableNames}\nCompanies: ${availableCompanies}`);
 }
 
 highlightButton.addEventListener('click', searchAndHighlight);
@@ -1246,6 +1463,12 @@ pathOnlyToggle.addEventListener('click', () => {
 });
 
 function showOnlyOptimalPathNodes() {
+  // Check if we have multiple paths or single path
+  if (currentMultiplePaths && currentMultiplePaths.paths.length > 0) {
+    showOnlyMultiplePathsNodes();
+    return;
+  }
+  
   // If no optimal path is selected, show all nodes
   if (!currentTarget || currentOptimalPath.path.length === 0) {
     console.log('No optimal path selected - showing all nodes');
@@ -1283,6 +1506,49 @@ function showOnlyOptimalPathNodes() {
   });
   
   console.log(`Path-only mode: Showing ${visibleNodeIds.size} nodes and their connecting edges`);
+}
+
+function showOnlyMultiplePathsNodes() {
+  // If no multiple paths are selected, show all nodes
+  if (!currentMultiplePaths || currentMultiplePaths.paths.length === 0) {
+    console.log('No multiple paths selected - showing all nodes');
+    return;
+  }
+  
+  // Get all nodes that should be visible (You + all path nodes)
+  const visibleNodeIds = new Set(['me']);
+  currentMultiplePaths.paths.forEach(pathData => {
+    pathData.path.forEach(nodeId => visibleNodeIds.add(nodeId));
+  });
+  
+  // Hide all nodes first
+  nodeObjs.forEach((node, nodeId) => {
+    if (!visibleNodeIds.has(nodeId)) {
+      node.visible = false;
+      hiddenNodes.add(nodeId);
+    } else {
+      node.visible = true;
+      hiddenNodes.delete(nodeId);
+    }
+  });
+  
+  // Hide all edges that don't connect visible nodes
+  edgeLines.forEach((line, edgeKey) => {
+    const [sourceId, targetId] = edgeKey.split('-');
+    const shouldShowEdge = visibleNodeIds.has(sourceId) && visibleNodeIds.has(targetId);
+    line.visible = shouldShowEdge;
+  });
+  
+  // Hide all cylinders (optimal path edges) that don't connect visible nodes
+  edgeGroup.children.forEach(child => {
+    if (child.userData && child.userData.isOptimalEdge) {
+      const [sourceId, targetId] = child.userData.edgeKey.split('-');
+      const shouldShowEdge = visibleNodeIds.has(sourceId) && visibleNodeIds.has(targetId);
+      child.visible = shouldShowEdge;
+    }
+  });
+  
+  console.log(`Path-only mode: Showing ${visibleNodeIds.size} nodes and their connecting edges for multiple paths`);
 }
 
 function showAllNodes() {
