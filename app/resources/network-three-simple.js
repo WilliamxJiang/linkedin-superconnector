@@ -964,11 +964,16 @@ function updateSidebarInfo() {
 function applyHoverEffect(node) {
   if (!node.userData) return;
   
-  // Store original scale
-  hoveredNodeOriginalScale = node.scale.clone();
+  // Store original scales of visual elements
+  hoveredNodeOriginalScale = {};
   
-  // Enlarge the node
-  node.scale.multiplyScalar(1.3);
+  // Scale only the visual elements inside the group, not the group itself
+  node.children.forEach(child => {
+    if (child.userData.isGlow || child.userData.isCore) {
+      hoveredNodeOriginalScale[child.uuid] = child.scale.clone();
+      child.scale.multiplyScalar(1.3);
+    }
+  });
   
   // Show the label
   if (node.userData.label) {
@@ -984,9 +989,15 @@ function applyHoverEffect(node) {
 function resetHoverEffect(node) {
   if (!node.userData) return;
   
-  // Reset scale
-  if (hoveredNodeOriginalScale) {
-    node.scale.copy(hoveredNodeOriginalScale);
+  // Reset scales of visual elements
+  if (hoveredNodeOriginalScale && typeof hoveredNodeOriginalScale === 'object') {
+    node.children.forEach(child => {
+      if (child.userData.isGlow || child.userData.isCore) {
+        if (hoveredNodeOriginalScale[child.uuid]) {
+          child.scale.copy(hoveredNodeOriginalScale[child.uuid]);
+        }
+      }
+    });
   }
   
   // Hide the label (but never hide the "You" node label or current target node)
@@ -1501,7 +1512,7 @@ function animate(){
       }
       
       nodeObjs.forEach((node, nodeId) => {
-        if (nodeId !== 'me' && nodeId !== hoveredNode?.id) { // Don't rotate the "You" node or hovered node
+        if (nodeId !== 'me') { // Don't rotate the "You" node itself
           // Get relative position from "You" node
           const relativePos = node.position.clone().sub(youPosition);
           
