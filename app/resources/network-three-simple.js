@@ -450,6 +450,29 @@ sample.nodes.forEach((n, idx) => {
 
   individualNode.add(core);
   
+  // Add glow outline
+  const nodeSize = n.id === 'me' ? 30 : 24;
+  const glowRadius = nodeSize/2 + 3; // Slightly larger than the node
+  const glowGeometry = new THREE.RingGeometry(glowRadius - 2, glowRadius, 32);
+  
+  // Determine glow color
+  const glowColor = n.id === 'me' ? 0x4CAF50 : 0x4DA6FF; // Green for user, blue for 1st-degree
+  
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: glowColor,
+    transparent: true,
+    opacity: 0.6,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    depthTest: true
+  });
+  
+  const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+  glow.position.z = -0.1; // Slightly behind the profile picture
+  glow.renderOrder = 1; // Behind profile picture but above edges
+  glow.userData.isGlow = true;
+  individualNode.add(glow);
+  
   // Layout nodes in 3D space with 'me' at center
   if (n.id === 'me') {
     individualNode.position.set(0, 0, 0);
@@ -808,13 +831,17 @@ function highlightNode(nodeId, highlightType = 'none') {
     console.log(`Highlighting target node ${nodeId} with orange color`);
     highlightedNodes.add(nodeId);
     
-    // Handle profile picture and other node children
+    // Handle profile picture and glow children
     node.children.forEach(child => {
       if (child.material) {
         if (child.userData.isBillboard) {
           // Apply orange tint to profile picture
           child.material.color.setHex(0xFF7043);
           child.material.opacity = 0.8; // Slightly transparent to show the orange tint
+        } else if (child.userData.isGlow) {
+          // Change glow to orange
+          child.material.color.setHex(0xFF7043);
+          child.material.opacity = 0.8;
         } else {
           child.material.color.setHex(0xFF7043); // Vivid orange
         }
@@ -834,13 +861,17 @@ function highlightNode(nodeId, highlightType = 'none') {
     console.log(`Highlighting intermediate node ${nodeId} with yellow color`);
     highlightedNodes.add(nodeId);
     
-    // Handle profile picture and other node children
+    // Handle profile picture and glow children
     node.children.forEach(child => {
       if (child.material) {
         if (child.userData.isBillboard) {
           // Apply yellow tint to profile picture
           child.material.color.setHex(0xffd700);
           child.material.opacity = 0.8; // Slightly transparent to show the yellow tint
+        } else if (child.userData.isGlow) {
+          // Change glow to yellow
+          child.material.color.setHex(0xffd700);
+          child.material.opacity = 0.8;
         } else {
           child.material.color.setHex(0xffd700); // Gold/yellow
         }
@@ -853,13 +884,17 @@ function highlightNode(nodeId, highlightType = 'none') {
     console.log(`Clearing highlighting for node ${nodeId}, restoring to original color: ${originalColor.toString(16)}`);
     highlightedNodes.delete(nodeId);
     
-    // Handle profile picture and other node children
+    // Handle profile picture and glow children
     node.children.forEach(child => {
       if (child.material) {
         if (child.userData.isBillboard) {
           // Reset profile picture to original color (no tint)
           child.material.color.setHex(0xffffff); // White for no tint
           child.material.opacity = 1.0; // Full opacity
+        } else if (child.userData.isGlow) {
+          // Restore original glow color
+          child.material.color.setHex(originalColor);
+          child.material.opacity = 0.6; // Restore original glow opacity
         } else {
           child.material.color.setHex(originalColor);
         }
@@ -1941,6 +1976,19 @@ function animate(){
         
       }
     }
+  });
+  
+  // Add gentle pulsing animation to all glow rings
+  nodeObjs.forEach((node, nodeId) => {
+    node.children.forEach(child => {
+      if (child.userData.isGlow && !child.userData.isHighlighted) {
+        // Gentle pulsing animation for glow rings
+        const glowPulse = 1 + Math.sin(t * 0.8) * 0.15; // Slow, gentle pulse
+        const opacityPulse = 0.6 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
+        child.scale.setScalar(glowPulse);
+        child.material.opacity = Math.min(opacityPulse, 0.8);
+      }
+    });
   });
   
   // Reset non-highlighted nodes to original state
