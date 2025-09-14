@@ -368,7 +368,7 @@ sample.nodes.forEach((n, idx) => {
   if (n.id === 'me') {
     nodeColor = 0x4CAF50; // Bright green for user node
   } else {
-    nodeColor = 0x000000; // Black for 1st-degree connections (testing)
+    nodeColor = 0xFF0000; // Bright red for 1st-degree connections (testing)
   }
   
   // Declare glow variables outside the if block
@@ -470,14 +470,13 @@ sample.nodes.forEach((n, idx) => {
       const glowOpacities = n.id === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
       
       glowSizes.forEach((glowSize, index) => {
-        // Create a ring geometry around the circular node
-        const innerRadius = nodeSize/2 + 2; // Start just outside the profile picture
-        const outerRadius = glowSize/2;
-        const glowGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 32);
+        // Create a circle geometry for testing (instead of ring)
+        const glowRadius = glowSize/2;
+        const glowGeometry = new THREE.CircleGeometry(glowRadius, 32);
         const glowMaterial = new THREE.MeshBasicMaterial({
           color: nodeColor,
-          transparent: true,
-          opacity: glowOpacities[index],
+          transparent: false, // Make completely opaque for testing
+          opacity: 1.0, // Full opacity
           side: THREE.DoubleSide,
           depthWrite: true, // Write to depth buffer for proper layering
           depthTest: true,  // Test depth for proper layering
@@ -2064,7 +2063,7 @@ function animate(){
         child.scale.setScalar(glowPulse);
         if (child.material) {
           // Ensure correct color is maintained
-          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x000000; // Black for testing
+          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0xFF0000; // Red for testing
           child.material.color.setHex(originalColor);
           child.material.opacity = Math.min(opacityPulse, 1.0);
           // Mark this glow as being animated so other code doesn't override it
@@ -2110,7 +2109,7 @@ function animate(){
               child.material.color.setHex(0xffd700);
             } else {
               // Default color
-              const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x000000; // Black for testing
+              const originalColor = nodeId === 'me' ? 0x4CAF50 : 0xFF0000; // Red for testing
               child.material.color.setHex(originalColor);
             }
           }
@@ -2132,7 +2131,7 @@ function animate(){
           child.material.color.setHex(0xffffff); // White for no tint
           child.material.opacity = 1.0; // Full opacity
         } else if (child.userData.isGlow) {
-          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x000000; // Black for testing
+          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0xFF0000; // Red for testing
           child.material.color.setHex(originalColor);
           
           // Reset to original opacity based on glow layer
