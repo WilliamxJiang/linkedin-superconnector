@@ -383,9 +383,9 @@ sample.nodes.forEach((n, idx) => {
       new THREE.MeshBasicMaterial({ 
         color: nodeColor,
         transparent: true,
-        opacity: n.id === 'me' ? 0.08 : 0.05, // Much more ethereal glow
+        opacity: n.id === 'me' ? 0.3 : 0.2, // More visible glow
         side: THREE.BackSide,
-        blending: THREE.AdditiveBlending, // Additive blending for ethereal glow
+        blending: THREE.NormalBlending, // Normal blending for true color visibility
         fog: false // Disable fog for cleaner glow
       })
     );
@@ -398,8 +398,8 @@ sample.nodes.forEach((n, idx) => {
       new THREE.MeshBasicMaterial({ 
         color: nodeColor,
         transparent: true,
-        opacity: n.id === 'me' ? 0.15 : 0.1, // Much more ethereal glow
-        blending: THREE.AdditiveBlending, // Additive blending for ethereal glow
+        opacity: n.id === 'me' ? 0.4 : 0.3, // More visible glow
+        blending: THREE.NormalBlending, // Normal blending for true color visibility
         fog: false // Disable fog for cleaner glow
       })
     );
@@ -466,7 +466,7 @@ sample.nodes.forEach((n, idx) => {
       
       // Add multiple glow layers around profile picture for better color effect
       const glowSizes = n.id === 'me' ? [40, 35, 30] : [32, 28, 24];
-      const glowOpacities = n.id === 'me' ? [0.15, 0.2, 0.25] : [0.1, 0.15, 0.2];
+      const glowOpacities = n.id === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
       
       glowSizes.forEach((glowSize, index) => {
         // Create a ring geometry around the circular node
@@ -478,9 +478,9 @@ sample.nodes.forEach((n, idx) => {
           transparent: true,
           opacity: glowOpacities[index],
           side: THREE.DoubleSide,
-          depthWrite: false, // Don't write to depth buffer
-          depthTest: false,  // Don't test depth
-          blending: THREE.AdditiveBlending, // Additive blending for ethereal glow
+          depthWrite: true, // Write to depth buffer for proper layering
+          depthTest: true,  // Test depth for proper layering
+          blending: THREE.NormalBlending, // Normal blending for true color visibility
           fog: false // Disable fog for cleaner glow
         });
         
