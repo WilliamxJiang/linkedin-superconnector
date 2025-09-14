@@ -466,7 +466,7 @@ sample.nodes.forEach((n, idx) => {
       
       // Add multiple glow layers around profile picture for better color effect
       console.log(`Creating glows for node ${n.id} with profile picture`);
-      const glowSizes = n.id === 'me' ? [40, 35, 30] : [32, 28, 24];
+      const glowSizes = n.id === 'me' ? [25, 22, 19] : [20, 18, 16]; // Much smaller glows
       const glowOpacities = n.id === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
       
       glowSizes.forEach((glowSize, index) => {
@@ -475,8 +475,8 @@ sample.nodes.forEach((n, idx) => {
         const glowGeometry = new THREE.CircleGeometry(glowRadius, 32);
         const glowMaterial = new THREE.MeshBasicMaterial({
           color: nodeColor,
-          transparent: false, // Make completely opaque for testing
-          opacity: 1.0, // Full opacity
+          transparent: true, // Make transparent so it doesn't cover profile picture
+          opacity: 0.3, // Low opacity for subtle glow effect
           side: THREE.DoubleSide,
           depthWrite: true, // Write to depth buffer for proper layering
           depthTest: true,  // Test depth for proper layering
@@ -490,8 +490,8 @@ sample.nodes.forEach((n, idx) => {
         }
         
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        glow.position.z = -0.5 - (index * 0.1); // Much further behind the profile picture
-        glow.renderOrder = -1; // Glow renders behind profile picture
+        glow.position.z = -1.0 - (index * 0.2); // Even further behind the profile picture
+        glow.renderOrder = -10; // Glow renders far behind profile picture
         glow.userData.isGlow = true;
         glow.userData.isBillboard = true; // Make glow also billboard
         glow.userData.glowIndex = index;
