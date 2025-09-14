@@ -477,8 +477,8 @@ sample.nodes.forEach((n, idx) => {
         const glowGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 32);
         const glowMaterial = new THREE.MeshBasicMaterial({
           color: nodeColor,
-          transparent: true, // Make transparent so it doesn't cover profile picture
-          opacity: 0.3, // Low opacity for subtle glow effect
+          transparent: false, // Make opaque for testing
+          opacity: 1.0, // Full opacity for testing
           side: THREE.DoubleSide,
           depthWrite: true, // Write to depth buffer for proper layering
           depthTest: true,  // Test depth for proper layering
@@ -497,6 +497,11 @@ sample.nodes.forEach((n, idx) => {
         glow.userData.isGlow = true;
         glow.userData.isBillboard = true; // Make glow also billboard
         glow.userData.glowIndex = index;
+        
+        // Force set the color after creation
+        glow.material.color.setHex(nodeColor);
+        console.log(`Set glow color to ${nodeColor.toString(16)} for node ${n.id}`);
+        
         glowNode.add(glow);
         console.log(`Added glow ${index} to node ${n.id}, glowNode children count: ${glowNode.children.length}`);
       });
