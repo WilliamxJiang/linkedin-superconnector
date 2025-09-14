@@ -157,7 +157,8 @@ if (sample_data) {
         company: 'Your Company',
         school: 'Your School',
         role: 'Your Role',
-        profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'
+        profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM',
+        profileUrl: null // You node doesn't have a profile URL
       }
     ];
     
@@ -182,7 +183,8 @@ if (sample_data) {
         company: toCompany(p),
         school: toSchool(p),
         role: toRole(p),
-        profilePic: toProfilePic(p)
+        profilePic: toProfilePic(p),
+        profileUrl: p?.profile_url?.trim() || null // Store LinkedIn profile URL
       };
       
       nodes.push(node);
@@ -582,7 +584,8 @@ sample.nodes.forEach((n, idx) => {
   glowNode.userData = { 
     nodeId: n.id, 
     label: labelDiv,
-    originalScale: 1
+    originalScale: 1,
+    profileUrl: n.profileUrl // Store LinkedIn profile URL for double-click
   };
 
   nodeAnimations.set(n.id, {
@@ -1125,10 +1128,38 @@ function onPointerUp(ev){
   }
 }
 
+// Double-click handler to open LinkedIn profile
+function onDoubleClick(ev) {
+  setPointer(ev);
+  raycaster.setFromCamera(pointer, camera);
+  const nodeArray = Array.from(nodeObjs.values());
+  const intersects = raycaster.intersectObjects(nodeArray, true);
+  
+  if (intersects.length > 0) {
+    // Find the parent group that contains this mesh
+    let parent = intersects[0].object.parent;
+    while (parent && !nodeArray.includes(parent)) {
+      parent = parent.parent;
+    }
+    
+    if (parent && parent.userData && parent.userData.profileUrl) {
+      // Open LinkedIn profile in new tab
+      window.open(parent.userData.profileUrl, '_blank');
+      console.log(`Opening LinkedIn profile for ${parent.userData.nodeId}: ${parent.userData.profileUrl}`);
+    } else if (parent && parent.userData && parent.userData.nodeId === 'me') {
+      // You node - no profile URL available
+      console.log('You node clicked - no LinkedIn profile URL available');
+    } else {
+      console.log('No LinkedIn profile URL available for this node');
+    }
+  }
+}
+
 renderer.domElement.addEventListener('pointerdown', onPointerDown);
 renderer.domElement.addEventListener('pointermove', onPointerMove);
 renderer.domElement.addEventListener('pointerup', onPointerUp);
 renderer.domElement.addEventListener('pointerleave', onPointerUp);
+renderer.domElement.addEventListener('dblclick', onDoubleClick);
 
 // Search functionality
 const searchInput = document.getElementById('search');
