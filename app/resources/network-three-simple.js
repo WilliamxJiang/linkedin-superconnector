@@ -885,8 +885,9 @@ function highlightNode(nodeId, highlightType = 'none') {
     node.children.forEach(child => {
       if (child.material) {
         if (child.userData.isBillboard) {
-          // Keep profile picture unchanged - no color overlay
-          // Profile picture stays clear and undistorted
+          // Apply orange tint to profile picture
+          child.material.color.setHex(0xFF7043);
+          child.material.opacity = 0.8; // Slightly transparent to show the orange tint
         } else if (child.userData.isGlow) {
           // For glow effects, make them more prominent with orange
           child.material.color.setHex(0xFF7043);
@@ -920,8 +921,9 @@ function highlightNode(nodeId, highlightType = 'none') {
     node.children.forEach(child => {
       if (child.material) {
         if (child.userData.isBillboard) {
-          // Keep profile picture unchanged - no color overlay
-          // Profile picture stays clear and undistorted
+          // Apply yellow tint to profile picture
+          child.material.color.setHex(0xffd700);
+          child.material.opacity = 0.8; // Slightly transparent to show the yellow tint
         } else if (child.userData.isGlow) {
           // For glow effects, make them more prominent with yellow
           child.material.color.setHex(0xffd700);
@@ -947,8 +949,9 @@ function highlightNode(nodeId, highlightType = 'none') {
     node.children.forEach(child => {
       if (child.material) {
         if (child.userData.isBillboard) {
-          // Keep profile picture unchanged - no color overlay
-          // Profile picture stays clear and undistorted
+          // Reset profile picture to original color (no tint)
+          child.material.color.setHex(0xffffff); // White for no tint
+          child.material.opacity = 1.0; // Full opacity
         } else if (child.userData.isGlow) {
           // For glow effects, restore original color and opacity
           child.material.color.setHex(originalColor);
@@ -1027,7 +1030,7 @@ function updateOptimalPath(targetId) {
         
         const cylinderGeometry = new THREE.CylinderGeometry(0.6, 0.6, length, 8);
         const cylinderMaterial = new THREE.MeshBasicMaterial({
-          color: 0xFFD700, // Gold for highlighted path edges
+          color: 0xffd700, // Yellow for highlighted path edges
           transparent: true,
           opacity: 0.9
         });
@@ -1130,7 +1133,7 @@ function updateMultipleOptimalPaths(companyName, companyNodes) {
       if (s && t) {
         const cylinder = new THREE.CylinderGeometry(2, 2, s.position.distanceTo(t.position), 8);
         const cylinderMaterial = new THREE.MeshBasicMaterial({ 
-          color: 0xFFD700, 
+          color: 0xffd700, // Yellow for highlighted path edges
           transparent: true, 
           opacity: 0.8 
         });
@@ -2030,9 +2033,13 @@ function animate(){
       // Reset scale to normal
       node.scale.setScalar(1);
       
-      // Reset glow effects to original colors and opacity
+      // Reset glow effects and profile pictures to original colors and opacity
       node.children.forEach(child => {
-        if (child.userData.isGlow) {
+        if (child.userData.isBillboard) {
+          // Reset profile picture to original color (no tint)
+          child.material.color.setHex(0xffffff); // White for no tint
+          child.material.opacity = 1.0; // Full opacity
+        } else if (child.userData.isGlow) {
           const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
           child.material.color.setHex(originalColor);
           
