@@ -2058,32 +2058,32 @@ function animate(){
   // Network rotation disabled - all nodes remain stationary
   // (Previous rotation code removed)
   
-  // Add slow pulsing animation to all node glows
-  nodeObjs.forEach((node, nodeId) => {
-    let glowCount = 0;
-    node.children.forEach(child => {
-      if (child.userData.isGlow && !child.userData.isHighlighted) {
-        glowCount++;
-        // Slow pulsing animation for all glows (except highlighted ones)
-        const glowPulse = 1 + Math.sin(t * 0.8) * 0.15; // Slow, gentle pulse
-        const opacityPulse = 0.7 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
-        child.scale.setScalar(glowPulse);
-        if (child.material) {
-          // Ensure correct color is maintained
-          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0xFF0000; // Red for testing
-          child.material.color.setHex(originalColor);
-          child.material.opacity = Math.min(opacityPulse, 1.0);
-          // Mark this glow as being animated so other code doesn't override it
-          child.userData.isPulsing = true;
-        }
-      }
-    });
+  // TEMPORARILY DISABLED: Add slow pulsing animation to all node glows
+  // nodeObjs.forEach((node, nodeId) => {
+  //   let glowCount = 0;
+  //   node.children.forEach(child => {
+  //     if (child.userData.isGlow && !child.userData.isHighlighted) {
+  //       glowCount++;
+  //       // Slow pulsing animation for all glows (except highlighted ones)
+  //       const glowPulse = 1 + Math.sin(t * 0.8) * 0.15; // Slow, gentle pulse
+  //       const opacityPulse = 0.7 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
+  //       child.scale.setScalar(glowPulse);
+  //       if (child.material) {
+  //         // Ensure correct color is maintained
+  //         const originalColor = nodeId === 'me' ? 0x4CAF50 : 0xFF0000; // Red for testing
+  //         child.material.color.setHex(originalColor);
+  //         child.material.opacity = Math.min(opacityPulse, 1.0);
+  //         // Mark this glow as being animated so other code doesn't override it
+  //         child.userData.isPulsing = true;
+  //       }
+  //     }
+  //   });
     
-    // Debug: Log glow count for each node every 200 frames
-    if (Math.floor(t * 60) % 200 === 0 && glowCount > 0) {
-      console.log(`Node ${nodeId}: ${glowCount} glows pulsing`);
-    }
-  });
+  //   // Debug: Log glow count for each node every 200 frames
+  //   if (Math.floor(t * 60) % 200 === 0 && glowCount > 0) {
+  //     console.log(`Node ${nodeId}: ${glowCount} glows pulsing`);
+  //   }
+  // });
 
   // Add pulsing scale animation for all highlighted nodes in optimal path
   highlightedNodes.forEach(nodeId => {
