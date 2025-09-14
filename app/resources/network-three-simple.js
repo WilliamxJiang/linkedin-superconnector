@@ -738,6 +738,51 @@ function zoomToMultiplePaths() {
   animateCamera();
 }
 
+// Zoom in on a specific path from multiple paths
+function zoomToSpecificPath(pathIndex) {
+  if (!currentMultiplePaths || !currentMultiplePaths.paths[pathIndex]) return;
+  
+  const pathData = currentMultiplePaths.paths[pathIndex];
+  const pathNodes = pathData.path.map(nodeId => nodeObjs.get(nodeId)).filter(node => node);
+  
+  if (pathNodes.length === 0) return;
+  
+  // Calculate bounding box for this specific path
+  const box = new THREE.Box3().setFromPoints(pathNodes.map(node => node.position));
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const distance = maxDim * 2;
+  
+  // Animate camera to focus on this specific path
+  const targetPosition = center.clone();
+  targetPosition.z += distance;
+  
+  // Store original camera position for smooth animation
+  const originalPosition = camera.position.clone();
+  const originalTarget = controls.target.clone();
+  
+  // Animate camera movement
+  const startTime = Date.now();
+  const duration = 1000; // 1 second animation
+  
+  function animateCamera() {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const easeProgress = 1 - Math.pow(1 - progress, 3); // Ease out cubic
+    
+    camera.position.lerpVectors(originalPosition, targetPosition, easeProgress);
+    controls.target.lerpVectors(originalTarget, center, easeProgress);
+    controls.update();
+    
+    if (progress < 1) {
+      requestAnimationFrame(animateCamera);
+    }
+  }
+  
+  animateCamera();
+}
+
 // Find optimal path from 'me' to a specific target node
 function findOptimalPathToTarget(targetId) {
   if (targetId === 'me') return { edges: new Set(), path: ['me'] };
@@ -1047,8 +1092,8 @@ function updateMultipleOptimalPaths(companyName, companyNodes) {
     companyName: companyName
   };
   
-  // Highlight all nodes in all paths
-  multiplePaths.paths.forEach((pathData, index) => {
+  // Highlight all nodes in all paths with proper color coding
+  multiplePaths.paths.forEach((pathData, pathIndex) => {
     pathData.path.forEach((nodeId, nodeIndex) => {
       if (nodeId !== 'me') {
         if (nodeId === pathData.targetId) {
@@ -1153,24 +1198,24 @@ function updateMultiplePathsSidebarInfo() {
     return;
   }
   
-  const pathNames = currentMultiplePaths.paths.map(pathData => {
+  const pathNames = currentMultiplePaths.paths.map((pathData, index) => {
     const pathNodeNames = pathData.path.map(id => {
       const node = sample.nodes.find(n => n.id === id);
       return node ? node.name : id;
     });
-    return `${pathNodeNames.join(' → ')} (${pathData.targetName})`;
+    return `<span class="clickable-path" data-path-index="${index}" style="color: #FFD700; cursor: pointer; text-decoration: underline; display: block; margin: 4px 0; padding: 2px 4px; border-radius: 4px; background: rgba(255,215,0,0.1);">${pathNodeNames.join(' → ')} (${pathData.targetName})</span>`;
   });
   
   optimalPathDiv.style.display = 'block';
   optimalPathDiv.innerHTML = `
     <strong>Optimal Paths to ${currentMultiplePaths.companyName}:</strong><br>
-    ${pathNames.join('<br>')}<br>
-    <em style="color: #FFD700; cursor: pointer; text-decoration: underline;">Click to zoom in on paths</em>
+    ${pathNames.join('')}
   `;
   
-  // Add click event listener for zoom functionality
-  optimalPathDiv.style.cursor = 'pointer';
-  optimalPathDiv.onclick = zoomToMultiplePaths;
+  // Add click event listeners for individual path zooming
+  optimalPathDiv.querySelectorAll('.clickable-path').forEach((pathElement, index) => {
+    pathElement.addEventListener('click', () => zoomToSpecificPath(index));
+  });
 }
 
 // Hover effect functions
