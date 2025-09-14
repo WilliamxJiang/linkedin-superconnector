@@ -1987,6 +1987,25 @@ function animate(){
         const opacityPulse = 0.6 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
         child.scale.setScalar(glowPulse);
         child.material.opacity = Math.min(opacityPulse, 0.8);
+        
+        // Make glow rings always face the camera
+        const worldPosition = new THREE.Vector3();
+        child.getWorldPosition(worldPosition);
+        
+        // Calculate direction from glow to camera
+        const direction = new THREE.Vector3().subVectors(camera.position, worldPosition);
+        direction.normalize();
+        
+        // Create a look-at matrix to face the camera directly
+        const lookAtMatrix = new THREE.Matrix4();
+        lookAtMatrix.lookAt(worldPosition, camera.position, camera.up);
+        
+        // Extract rotation from the look-at matrix
+        const quaternion = new THREE.Quaternion();
+        quaternion.setFromRotationMatrix(lookAtMatrix);
+        
+        // Apply the rotation to make glow face the camera directly
+        child.quaternion.copy(quaternion);
       }
     });
   });
