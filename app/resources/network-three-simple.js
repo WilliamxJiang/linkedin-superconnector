@@ -993,6 +993,16 @@ function updateOptimalPath(targetId) {
   highlightedNodes.forEach(nodeId => highlightNode(nodeId, 'none'));
   highlightedNodes.clear();
   
+  // Clear multiple paths state when switching to single path
+  currentMultiplePaths = null;
+  
+  // Clear any existing optimal path cylinders from previous multiple paths
+  edgeGroup.children.forEach(child => {
+    if (child.userData && child.userData.isOptimalEdge) {
+      edgeGroup.remove(child);
+    }
+  });
+  
   // Clear hidden nodes to ensure all nodes are visible
   hiddenNodes.forEach(nodeId => {
     const node = nodeObjs.get(nodeId);
@@ -1083,6 +1093,9 @@ function updateOptimalPath(targetId) {
       line.material.opacity = opacity;
     }
   });
+  
+  // Update edges to show the new optimal path
+  updateEdges();
   
   // Update sidebar info
   updateSidebarInfo();
