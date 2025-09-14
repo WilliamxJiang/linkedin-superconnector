@@ -466,13 +466,15 @@ sample.nodes.forEach((n, idx) => {
       
       // Add multiple glow layers around profile picture for better color effect
       console.log(`Creating glows for node ${n.id} with profile picture`);
-      const glowSizes = n.id === 'me' ? [25, 22, 19] : [20, 18, 16]; // Much smaller glows
+      const profileRadius = nodeSize/2; // Radius of the profile picture
+      const glowSizes = n.id === 'me' ? [profileRadius + 3, profileRadius + 6, profileRadius + 9] : [profileRadius + 2, profileRadius + 4, profileRadius + 6]; // Glows just outside profile
       const glowOpacities = n.id === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
       
       glowSizes.forEach((glowSize, index) => {
-        // Create a circle geometry for testing (instead of ring)
-        const glowRadius = glowSize/2;
-        const glowGeometry = new THREE.CircleGeometry(glowRadius, 32);
+        // Create a ring geometry that goes around the profile picture
+        const innerRadius = profileRadius + 1; // Start just outside the profile picture
+        const outerRadius = glowSize; // End at the glow size
+        const glowGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 32);
         const glowMaterial = new THREE.MeshBasicMaterial({
           color: nodeColor,
           transparent: true, // Make transparent so it doesn't cover profile picture
@@ -490,8 +492,8 @@ sample.nodes.forEach((n, idx) => {
         }
         
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        glow.position.z = -1.0 - (index * 0.2); // Even further behind the profile picture
-        glow.renderOrder = -10; // Glow renders far behind profile picture
+        glow.position.z = -0.1 - (index * 0.05); // Just behind the profile picture
+        glow.renderOrder = 1; // Glow renders behind profile picture but above edges
         glow.userData.isGlow = true;
         glow.userData.isBillboard = true; // Make glow also billboard
         glow.userData.glowIndex = index;
