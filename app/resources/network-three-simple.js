@@ -341,7 +341,7 @@ let is3DMode = true; // Track current view mode
 let frozenZPositions = new Map(); // Store Z positions when in 2D mode
 let hoveredNode = null;
 let hoveredNodeOriginalScale = null;
-let networkRotationSpeed = 0.001; // Slow clockwise rotation speed
+let networkRotationSpeed = 0.0005; // Very slow clockwise rotation speed
 
 // Clear any existing nodes to prevent duplicates
 nodeGroup.clear();
@@ -1494,6 +1494,11 @@ function animate(){
     const youNode = nodeObjs.get('me');
     if (youNode) {
       const youPosition = youNode.position.clone();
+      
+      // Debug: Log rotation every 100 frames to avoid spam
+      if (Math.floor(t * 60) % 100 === 0) {
+        console.log(`Rotating network: is3DMode=${is3DMode}, youNode exists=${!!youNode}, speed=${networkRotationSpeed}`);
+      }
       
       nodeObjs.forEach((node, nodeId) => {
         if (nodeId !== 'me') { // Don't rotate the "You" node itself
