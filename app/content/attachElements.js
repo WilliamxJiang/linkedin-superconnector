@@ -1,4 +1,4 @@
-const NUM_IFRAMES = 1
+const NUM_IFRAMES = 0
 const IFRAME_ELEMENTS = []
 
 // Make CONNECTIONS_IFRAME globally accessible
