@@ -880,6 +880,7 @@ function highlightNode(nodeId, highlightType = 'none') {
   
   if (highlightType === 'target') {
     // Target node - vivid orange
+    console.log(`Highlighting target node ${nodeId} with orange color`);
     highlightedNodes.add(nodeId);
     node.children.forEach(child => {
       if (child.material) {
@@ -914,6 +915,7 @@ function highlightNode(nodeId, highlightType = 'none') {
     }
   } else if (highlightType === 'intermediate') {
     // Intermediate node - yellow
+    console.log(`Highlighting intermediate node ${nodeId} with yellow color`);
     highlightedNodes.add(nodeId);
     node.children.forEach(child => {
       if (child.material) {
@@ -994,9 +996,11 @@ function updateOptimalPath(targetId) {
     if (nodeId !== 'me') { // Don't highlight the 'me' node
       if (nodeId === targetId) {
         // Target node - bright orange
+        console.log(`Single path: highlighting target ${nodeId} as orange`);
         highlightNode(nodeId, 'target');
       } else {
         // Intermediate node - yellow
+        console.log(`Single path: highlighting intermediate ${nodeId} as yellow`);
         highlightNode(nodeId, 'intermediate');
       }
     }
@@ -1098,9 +1102,11 @@ function updateMultipleOptimalPaths(companyName, companyNodes) {
       if (nodeId !== 'me') {
         if (nodeId === pathData.targetId) {
           // Target node - bright orange
+          console.log(`Multiple paths: highlighting target ${nodeId} as orange`);
           highlightNode(nodeId, 'target');
         } else {
           // Intermediate node - yellow
+          console.log(`Multiple paths: highlighting intermediate ${nodeId} as yellow`);
           highlightNode(nodeId, 'intermediate');
         }
       }
