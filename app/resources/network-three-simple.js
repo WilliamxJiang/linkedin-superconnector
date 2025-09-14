@@ -377,33 +377,34 @@ sample.nodes.forEach((n, idx) => {
   
   // Outer glow sphere (only if no profile picture)
   if (!n.profilePic) {
-    const glowSize = n.id === 'me' ? 24 : 18;
-    outerGlow = new THREE.Mesh(
-      new THREE.SphereGeometry(glowSize, 16, 12),
-      new THREE.MeshBasicMaterial({ 
-        color: nodeColor,
-        transparent: true,
-        opacity: n.id === 'me' ? 0.3 : 0.2, // More visible glow
-        side: THREE.BackSide,
-        blending: THREE.NormalBlending, // Normal blending for true color visibility
-        fog: false // Disable fog for cleaner glow
-      })
-    );
-    glowNode.add(outerGlow);
+    // TEMPORARILY DISABLED: Create glow spheres
+    // const glowSize = n.id === 'me' ? 24 : 18;
+    // outerGlow = new THREE.Mesh(
+    //   new THREE.SphereGeometry(glowSize, 16, 12),
+    //   new THREE.MeshBasicMaterial({ 
+    //     color: nodeColor,
+    //     transparent: true,
+    //     opacity: n.id === 'me' ? 0.3 : 0.2, // More visible glow
+    //     side: THREE.BackSide,
+    //     blending: THREE.NormalBlending, // Normal blending for true color visibility
+    //     fog: false // Disable fog for cleaner glow
+    //   })
+    // );
+    // glowNode.add(outerGlow);
     
-    // Inner glow sphere (only if no profile picture)
-    const innerGlowSize = n.id === 'me' ? 15 : 12;
-    innerGlow = new THREE.Mesh(
-      new THREE.SphereGeometry(innerGlowSize, 16, 12),
-      new THREE.MeshBasicMaterial({ 
-        color: nodeColor,
-        transparent: true,
-        opacity: n.id === 'me' ? 0.4 : 0.3, // More visible glow
-        blending: THREE.NormalBlending, // Normal blending for true color visibility
-        fog: false // Disable fog for cleaner glow
-      })
-    );
-    glowNode.add(innerGlow);
+    // TEMPORARILY DISABLED: Inner glow sphere (only if no profile picture)
+    // const innerGlowSize = n.id === 'me' ? 15 : 12;
+    // innerGlow = new THREE.Mesh(
+    //   new THREE.SphereGeometry(innerGlowSize, 16, 12),
+    //   new THREE.MeshBasicMaterial({ 
+    //     color: nodeColor,
+    //     transparent: true,
+    //     opacity: n.id === 'me' ? 0.4 : 0.3, // More visible glow
+    //     blending: THREE.NormalBlending, // Normal blending for true color visibility
+    //     fog: false // Disable fog for cleaner glow
+    //   })
+    // );
+    // glowNode.add(innerGlow);
   }
   
   let core;
@@ -464,39 +465,39 @@ sample.nodes.forEach((n, idx) => {
       core.material.transparent = false; // Ensure solid occlusion
       core.material.opacity = 1.0; // Ensure full opacity
       
-      // Add multiple glow layers around profile picture for better color effect
-      const glowSizes = n.id === 'me' ? [40, 35, 30] : [32, 28, 24];
-      const glowOpacities = n.id === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
+      // TEMPORARILY DISABLED: Add multiple glow layers around profile picture for better color effect
+      // const glowSizes = n.id === 'me' ? [40, 35, 30] : [32, 28, 24];
+      // const glowOpacities = n.id === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
       
-      glowSizes.forEach((glowSize, index) => {
-        // Create a ring geometry around the circular node
-        const innerRadius = nodeSize/2 + 2; // Start just outside the profile picture
-        const outerRadius = glowSize/2;
-        const glowGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 32);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-          color: nodeColor,
-          transparent: true,
-          opacity: glowOpacities[index],
-          side: THREE.DoubleSide,
-          depthWrite: true, // Write to depth buffer for proper layering
-          depthTest: true,  // Test depth for proper layering
-          blending: THREE.NormalBlending, // Normal blending for true color visibility
-          fog: false // Disable fog for cleaner glow
-        });
+      // glowSizes.forEach((glowSize, index) => {
+      //   // Create a ring geometry around the circular node
+      //   const innerRadius = nodeSize/2 + 2; // Start just outside the profile picture
+      //   const outerRadius = glowSize/2;
+      //   const glowGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 32);
+      //   const glowMaterial = new THREE.MeshBasicMaterial({
+      //     color: nodeColor,
+      //     transparent: true,
+      //     opacity: glowOpacities[index],
+      //     side: THREE.DoubleSide,
+      //     depthWrite: true, // Write to depth buffer for proper layering
+      //     depthTest: true,  // Test depth for proper layering
+      //     blending: THREE.NormalBlending, // Normal blending for true color visibility
+      //     fog: false // Disable fog for cleaner glow
+      //   });
         
-        // Debug logging for glow color
-        if (n.id !== 'me') {
-          console.log(`Creating glow for node ${n.id}: color=${nodeColor.toString(16)}, opacity=${glowOpacities[index]}`);
-        }
+      //   // Debug logging for glow color
+      //   if (n.id !== 'me') {
+      //     console.log(`Creating glow for node ${n.id}: color=${nodeColor.toString(16)}, opacity=${glowOpacities[index]}`);
+      //   }
         
-        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        glow.position.z = -0.1 - (index * 0.05); // Slightly behind the profile picture
-        glow.renderOrder = 1; // Glow renders behind profile picture but above edges
-        glow.userData.isGlow = true;
-        glow.userData.isBillboard = true; // Make glow also billboard
-        glow.userData.glowIndex = index;
-        glowNode.add(glow);
-      });
+      //   const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+      //   glow.position.z = -0.1 - (index * 0.05); // Slightly behind the profile picture
+      //   glow.renderOrder = 1; // Glow renders behind profile picture but above edges
+      //   glow.userData.isGlow = true;
+      //   glow.userData.isBillboard = true; // Make glow also billboard
+      //   glow.userData.glowIndex = index;
+      //   glowNode.add(glow);
+      // });
       
       // Make the circular node always face the camera by updating its rotation in the animation loop
       core.userData.isBillboard = true;
