@@ -368,7 +368,7 @@ sample.nodes.forEach((n, idx) => {
   if (n.id === 'me') {
     nodeColor = 0x4CAF50; // Bright green for user node
   } else {
-    nodeColor = 0xFF0000; // Bright red for 1st-degree connections (testing)
+    nodeColor = 0x4DA6FF; // Medium blue for 1st-degree connections
   }
   
   // Declare glow variables outside the if block
@@ -897,7 +897,7 @@ function highlightNode(nodeId, highlightType = 'none') {
   const node = nodeObjs.get(nodeId);
   if (!node) return;
   
-  const originalColor = nodeId === 'me' ? 0x4CAF50 : 0xFF0000; // Red for testing
+  const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF; // Blue for 1st-degree connections
   
   if (highlightType === 'target') {
     // Target node - vivid orange
@@ -2058,32 +2058,32 @@ function animate(){
   // Network rotation disabled - all nodes remain stationary
   // (Previous rotation code removed)
   
-  // TEMPORARILY DISABLED: Add slow pulsing animation to all node glows
-  // nodeObjs.forEach((node, nodeId) => {
-  //   let glowCount = 0;
-  //   node.children.forEach(child => {
-  //     if (child.userData.isGlow && !child.userData.isHighlighted) {
-  //       glowCount++;
-  //       // Slow pulsing animation for all glows (except highlighted ones)
-  //       const glowPulse = 1 + Math.sin(t * 0.8) * 0.15; // Slow, gentle pulse
-  //       const opacityPulse = 0.7 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
-  //       child.scale.setScalar(glowPulse);
-  //       if (child.material) {
-  //         // Ensure correct color is maintained
-  //         const originalColor = nodeId === 'me' ? 0x4CAF50 : 0xFF0000; // Red for testing
-  //         child.material.color.setHex(originalColor);
-  //         child.material.opacity = Math.min(opacityPulse, 1.0);
-  //         // Mark this glow as being animated so other code doesn't override it
-  //         child.userData.isPulsing = true;
-  //       }
-  //     }
-  //   });
+  // Add slow pulsing animation to all node glows
+  nodeObjs.forEach((node, nodeId) => {
+    let glowCount = 0;
+    node.children.forEach(child => {
+      if (child.userData.isGlow && !child.userData.isHighlighted) {
+        glowCount++;
+        // Slow pulsing animation for all glows (except highlighted ones)
+        const glowPulse = 1 + Math.sin(t * 0.8) * 0.15; // Slow, gentle pulse
+        const opacityPulse = 0.7 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
+        child.scale.setScalar(glowPulse);
+        if (child.material) {
+          // Ensure correct color is maintained
+          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF; // Blue for 1st-degree connections
+          child.material.color.setHex(originalColor);
+          child.material.opacity = Math.min(opacityPulse, 1.0);
+          // Mark this glow as being animated so other code doesn't override it
+          child.userData.isPulsing = true;
+        }
+      }
+    });
     
-  //   // Debug: Log glow count for each node every 200 frames
-  //   if (Math.floor(t * 60) % 200 === 0 && glowCount > 0) {
-  //     console.log(`Node ${nodeId}: ${glowCount} glows pulsing`);
-  //   }
-  // });
+    // Debug: Log glow count for each node every 200 frames
+    if (Math.floor(t * 60) % 200 === 0 && glowCount > 0) {
+      console.log(`Node ${nodeId}: ${glowCount} glows pulsing`);
+    }
+  });
 
   // Add pulsing scale animation for all highlighted nodes in optimal path
   highlightedNodes.forEach(nodeId => {
@@ -2116,7 +2116,7 @@ function animate(){
               child.material.color.setHex(0xffd700);
             } else {
               // Default color
-              const originalColor = nodeId === 'me' ? 0x4CAF50 : 0xFF0000; // Red for testing
+              const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF; // Blue for 1st-degree connections
               child.material.color.setHex(originalColor);
             }
           }
@@ -2138,7 +2138,7 @@ function animate(){
           child.material.color.setHex(0xffffff); // White for no tint
           child.material.opacity = 1.0; // Full opacity
         } else if (child.userData.isGlow) {
-          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0xFF0000; // Red for testing
+          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF; // Blue for 1st-degree connections
           child.material.color.setHex(originalColor);
           
           // Reset to original opacity based on glow layer
