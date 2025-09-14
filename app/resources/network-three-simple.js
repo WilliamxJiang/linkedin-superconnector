@@ -935,6 +935,11 @@ function updateOptimalPath(targetId) {
   
   // Update sidebar info
   updateSidebarInfo();
+  
+  // If path-only mode is active, update the visible nodes
+  if (isPathOnlyMode) {
+    showOnlyOptimalPathNodes();
+  }
 }
 
 function updateSidebarInfo() {
@@ -1217,6 +1222,64 @@ sidebarHeader.addEventListener('click', () => {
     dropdownArrow.classList.add('expanded');
   }
 });
+
+// Path-only toggle functionality
+const pathOnlyToggle = document.getElementById('pathOnlyToggle');
+let isPathOnlyMode = false;
+let hiddenNodes = new Set(); // Store nodes that are hidden
+
+// Toggle path-only mode
+pathOnlyToggle.addEventListener('click', () => {
+  isPathOnlyMode = !isPathOnlyMode;
+  
+  if (isPathOnlyMode) {
+    // Hide all nodes except those in optimal path
+    showOnlyOptimalPathNodes();
+    pathOnlyToggle.classList.add('active');
+    pathOnlyToggle.textContent = 'Show All';
+  } else {
+    // Show all nodes
+    showAllNodes();
+    pathOnlyToggle.classList.remove('active');
+    pathOnlyToggle.textContent = 'Path Only';
+  }
+});
+
+function showOnlyOptimalPathNodes() {
+  // If no optimal path is selected, show all nodes
+  if (!currentTarget || currentOptimalPath.path.length === 0) {
+    console.log('No optimal path selected - showing all nodes');
+    return;
+  }
+  
+  // Hide all nodes first
+  nodeObjs.forEach((node, nodeId) => {
+    if (nodeId !== 'me' && !currentOptimalPath.path.includes(nodeId)) {
+      node.visible = false;
+      hiddenNodes.add(nodeId);
+    }
+  });
+  
+  // Show only the "You" node and optimal path nodes
+  nodeObjs.forEach((node, nodeId) => {
+    if (nodeId === 'me' || currentOptimalPath.path.includes(nodeId)) {
+      node.visible = true;
+      hiddenNodes.delete(nodeId);
+    }
+  });
+  
+  console.log(`Path-only mode: Showing ${currentOptimalPath.path.length + 1} nodes (You + path nodes)`);
+}
+
+function showAllNodes() {
+  // Show all nodes
+  nodeObjs.forEach((node, nodeId) => {
+    node.visible = true;
+  });
+  
+  hiddenNodes.clear();
+  console.log('Show all mode: Displaying all nodes');
+}
 
 // Switch to 3D mode
 function switchTo3D() {
