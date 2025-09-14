@@ -1089,6 +1089,7 @@ function updateOptimalPath(targetId) {
         color = 0x9aa7c6; // Gray
         opacity = 0.6;
       }
+      console.log(`Single path: Resetting edge ${e.source}-${e.target} to color ${color.toString(16)}`);
       line.material.color.setHex(color);
       line.material.opacity = opacity;
     }
@@ -1178,49 +1179,16 @@ function updateMultipleOptimalPaths(companyName, companyNodes) {
     });
   });
   
-  // Update edge colors and create thick cylinders for all optimal paths
+  // For multiple paths, make ALL edges yellow
+  console.log('Multiple paths: Making all edges yellow');
   sample.edges.forEach(e => {
     const line = edgeLines.get(`${e.source}-${e.target}`);
     if (!line) return;
     
-    const isOptimal = multiplePaths.allEdges.has(`${e.source}-${e.target}`);
-    
-    if (isOptimal) {
-      // Hide the original line and create a thick cylinder
-      line.visible = false;
-      
-      // Create thick cylinder for optimal path
-      const s = nodeObjs.get(e.source);
-      const t = nodeObjs.get(e.target);
-      if (s && t) {
-        const cylinder = new THREE.CylinderGeometry(2, 2, s.position.distanceTo(t.position), 8);
-        const cylinderMaterial = new THREE.MeshBasicMaterial({ 
-          color: 0xffd700, // Yellow for highlighted path edges
-          transparent: true, 
-          opacity: 0.8 
-        });
-        const cylinderMesh = new THREE.Mesh(cylinder, cylinderMaterial);
-        
-        // Position cylinder between nodes
-        const midPoint = new THREE.Vector3().addVectors(s.position, t.position).multiplyScalar(0.5);
-        cylinderMesh.position.copy(midPoint);
-        cylinderMesh.lookAt(t.position);
-        cylinderMesh.rotateX(Math.PI / 2);
-        
-        cylinder.renderOrder = -5; // Render cylinders behind nodes but above regular edges
-        
-        // Store reference to remove later
-        cylinder.userData = { isOptimalEdge: true, edgeKey: `${e.source}-${e.target}` };
-        edgeGroup.add(cylinder);
-      }
-    } else {
-      // Reset non-optimal edges to default
-      line.visible = true;
-      const color = 0x9aa7c6;
-      const opacity = 0.6;
-      line.material.color.setHex(color);
-      line.material.opacity = opacity;
-    }
+    // Make all edges yellow for multiple target nodes
+    line.visible = true;
+    line.material.color.setHex(0xffd700); // Yellow for all edges
+    line.material.opacity = 0.8;
   });
   
   // Update sidebar info
