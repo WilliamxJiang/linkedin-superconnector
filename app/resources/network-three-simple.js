@@ -395,7 +395,7 @@ let is3DMode = true; // Track current view mode
 let frozenZPositions = new Map(); // Store Z positions when in 2D mode
 let hoveredNode = null;
 let hoveredNodeOriginalScale = null;
-let networkRotationSpeed = 0.001; // Slow clockwise rotation speed
+let networkRotationSpeed = 0.0005; // Very slow clockwise rotation speed
 
 // Clear any existing nodes to prevent duplicates
 nodeGroup.clear();
@@ -1110,6 +1110,15 @@ function animate(){
     const youNode = nodeObjs.get('me');
     if (youNode) {
       const youPosition = youNode.position.clone();
+<<<<<<< HEAD
+=======
+      
+      // Debug: Log rotation every 100 frames to avoid spam
+      if (Math.floor(t * 60) % 100 === 0) {
+        console.log(`Rotating network: is3DMode=${is3DMode}, youNode exists=${!!youNode}, speed=${networkRotationSpeed}`);
+      }
+      
+>>>>>>> 5a303c9 (Make network rotation slower and add debug logging)
       nodeObjs.forEach((node, nodeId) => {
         if (nodeId !== 'me') {
           const relativePos = node.position.clone().sub(youPosition);
@@ -1251,7 +1260,7 @@ async function getOpenAIKey() {
   // Prefer loading from extension storage or env injected at build time
   // e.g., const { openaiKey } = await chrome.storage.sync.get('openaiKey');
   // return openaiKey;
-  return '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'; // <-- PUT NOTHING SENSITIVE IN SOURCE. Load at runtime.
+  return ''
 }
 
 async function chatJSON(messages, { model = OPENAI_MODEL, temperature = 0 } = {}) {
