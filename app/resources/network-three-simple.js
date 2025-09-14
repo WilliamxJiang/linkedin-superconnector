@@ -1501,6 +1501,21 @@ function animate(){
   
   // Network rotation disabled - all nodes remain stationary
   // (Previous rotation code removed)
+  
+  // Add slow pulsing animation to all node glows
+  nodeObjs.forEach((node, nodeId) => {
+    node.children.forEach(child => {
+      if (child.userData.isGlow) {
+        // Slow pulsing animation for all glows
+        const glowPulse = 1 + Math.sin(t * 0.8) * 0.15; // Slow, gentle pulse
+        const opacityPulse = 0.7 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
+        child.scale.setScalar(glowPulse);
+        if (child.material) {
+          child.material.opacity = Math.min(opacityPulse, 1.0);
+        }
+      }
+    });
+  });
 
   // Add pulsing scale animation for all highlighted nodes in optimal path
   highlightedNodes.forEach(nodeId => {
