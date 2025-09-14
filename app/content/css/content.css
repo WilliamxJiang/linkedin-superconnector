@@ -16,7 +16,7 @@ mapper-container{
     background-color: aqua;
 
     /* display: none; */
-    opacity: 0;
+    opacity: 1;
     pointer-events: none;
 }
 

@@ -55,7 +55,9 @@ Rules:
 
 /* Helper to build a user message with current context */
 function buildRouterUserMessage(userQuery, knownPeople) {
-  const knownLines = knownPeople.map(p => `- ${p.name}${p.description ? ' | ' + p.description : ''}`).join('\n');
+  const knownLines = knownPeople
+    .map(p => `- ${p.name}${p.description ? ' | ' + p.description : (p.company ? ' @ ' + p.company : '')}`)
+    .join('\n');
   return `
 User query:
 "${userQuery}"
@@ -70,15 +72,12 @@ Decide the single best action and return STRICT JSON only.
 /* Robust JSON extraction (handles code fences or stray text) */
 function safeJsonFromText(text) {
   try {
-    // First try direct parse
     return JSON.parse(text);
   } catch {
-    // Try extracting the first {...} block
     const match = text.match(/\{[\s\S]*\}$/m);
     if (match) {
       try { return JSON.parse(match[0]); } catch {}
     }
-    // Try code-fence cleanup
     const fence = text.replace(/```(?:json)?/g, '').trim();
     try { return JSON.parse(fence); } catch {}
   }
@@ -117,9 +116,7 @@ if (sample_data && sample_data.length > 0) {
 }
 if (sample_data) {
   try {
-    // const parsed = JSON.parse(sample_data) // expected: array of profile objects
     const parsed = sample_data;
-    // normalize to array
     const profiles = Array.isArray(parsed) ? parsed : (parsed?.data ?? []);
     if (!Array.isArray(profiles)) throw new Error('Profiles JSON is not an array');
 
@@ -132,7 +129,7 @@ if (sample_data) {
       return `n${i}`;
     };
 
-    // helper: extract name from full_name, first_name + last_name, or scraper name field
+    // helper: extract name
     const toName = (p) => {
       if (typeof p?.full_name === 'string' && p.full_name.trim()) return p.full_name.trim();
       if (typeof p?.name === 'string' && p.name.trim()) return p.name.trim();
@@ -141,7 +138,7 @@ if (sample_data) {
       return `${first} ${last}`.trim() || 'Unknown';
     };
 
-    // helper: extract company from current_company, company, or scraper description
+    // helper: extract company
     const toCompany = (p) => {
       if (p?.current_company?.trim()) return p.current_company.trim();
       if (p?.company?.trim()) return p.company.trim();
@@ -155,6 +152,7 @@ if (sample_data) {
       return 'Unknown';
     };
 
+    // helper: extract school
     const toSchool = (p) => {
       if (Array.isArray(p?.education) && p.education.length > 0) {
         return p.education[0]?.school?.trim() || 'Unknown';
@@ -167,6 +165,7 @@ if (sample_data) {
       return 'Unknown';
     };
 
+    // helper: extract role
     const toRole = (p) => {
       if (p?.current_title?.trim()) return p.current_title.trim();
       if (p?.title?.trim()) return p.title.trim();
@@ -180,7 +179,8 @@ if (sample_data) {
 
     const toDescription = (p) => {
       if (p?.description?.trim()) return p.description.trim();
-    }
+      return '';
+    };
 
     const toProfilePic = (p) => {
       if (p?.profile_picture_url?.trim()) return p.profile_picture_url.trim();
@@ -189,29 +189,17 @@ if (sample_data) {
       return null;
     };
 
-    // Filter out dud profiles (no name, invalid data, etc.)
+    // Filter out dud profiles
     const validProfiles = profiles.filter((p, i) => {
       const name = toName(p);
       const id = toId(p, i);
-      if (!name || name === 'Unknown' || name.trim() === '' || name.length < 2) {
-        console.log(`Filtering out dud profile ${i}: no valid name (${name})`);
-        return false;
-      }
-      if (!id || id.length < 2) {
-        console.log(`Filtering out dud profile ${i}: no valid ID (${id})`);
-        return false;
-      }
-      if (!p || typeof p !== 'object' || Object.keys(p).length === 0) {
-        console.log(`Filtering out dud profile ${i}: empty object`);
-        return false;
-      }
-      if (name.length < 3 || name === name.charAt(0).repeat(name.length)) {
-        console.log(`Filtering out dud profile ${i}: suspicious name (${name})`);
-        return false;
-      }
+      if (!name || name === 'Unknown' || name.trim() === '' || name.length < 2) return false;
+      if (!id || id.length < 2) return false;
+      if (!p || typeof p !== 'object' || Object.keys(p).length === 0) return false;
+      if (name.length < 3 || name === name.charAt(0).repeat(name.length)) return false;
       return true;
     });
-    
+
     // Deduplicate
     const uniqueProfiles = [];
     const seenIds = new Set();
@@ -220,13 +208,11 @@ if (sample_data) {
       if (!seenIds.has(id)) {
         seenIds.add(id);
         uniqueProfiles.push(p);
-      } else {
-        console.log(`Removing duplicate profile with ID: ${id}`);
       }
     });
-    
+
     console.log(`Deduplicated ${validProfiles.length} profiles down to ${uniqueProfiles.length} unique profiles`);
-    
+
     // build nodes array - start with "You" node
     const nodes = [
       {
@@ -236,10 +222,11 @@ if (sample_data) {
         company: 'Your Company',
         school: 'Your School',
         role: 'Your Role',
-        profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'
+        profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM',
+        profileUrl: null
       }
     ];
-    
+
     const usedIds = new Set(['me']);
     uniqueProfiles.forEach((p, i) => {
       const toIdLocal = (p, i) => {
@@ -260,31 +247,33 @@ if (sample_data) {
         id: nodeId,
         name: (p?.full_name || p?.name || `${p?.first_name || ''} ${p?.last_name || ''}`).trim() || 'Unknown',
         degree: 1,
-        // company: (p?.current_company || p?.company || '').trim() || 'Unknown',
         company: toCompany(p),
         school: toSchool(p),
         role: toRole(p),
         profilePic: toProfilePic(p),
-        description: toDescription(p)
+        description: toDescription(p),
+        profileUrl: p?.profile_url?.trim() || null
       };
       nodes.push(node);
     });
 
     // build edges array (You -> everyone)
     const edges = [];
-    for (let i = 1; i < nodes.length; i++) {
-      const targetNode = nodes[i];
-      if (targetNode && targetNode.id) {
-        edges.push({
-          source: 'me',
-          target: targetNode.id,
-          weight: Math.random() * 0.5 + 0.3,
-          reasons: ['Scraped connection']
-        });
+    if (nodes.length > 1) {
+      for (let i = 1; i < nodes.length; i++) {
+        const targetNode = nodes[i];
+        if (targetNode && targetNode.id) {
+          edges.push({
+            source: 'me',
+            target: targetNode.id,
+            weight: Math.random() * 0.5 + 0.3,
+            reasons: ['Scraped connection']
+          });
+        }
       }
     }
 
-    // Safety: ensure connected
+    // Safety: ensure all non-"me" nodes have edges
     const connectedNodeIds = new Set();
     edges.forEach(edge => {
       connectedNodeIds.add(edge.source);
@@ -299,9 +288,6 @@ if (sample_data) {
     console.log('=== PARSED GRAPH DEBUG ===');
     console.log('Number of nodes:', nodes.length);
     console.log('Number of edges:', edges.length);
-    console.log('First few nodes:', nodes.slice(0, 3));
-    console.log('First few edges:', edges.slice(0, 3));
-    console.log('Full graph:', graph);
   } catch (error) {
     console.error('Error parsing scraped data:', error);
     // Fallback to sample data if parsing fails
@@ -388,14 +374,14 @@ scene.add(nodeGroup, edgeGroup);
 
 const nodeObjs = new Map();
 const nodeAnimations = new Map();
-let currentOptimalPath = { edges: new Set(), path: [] };
+let currentOptimalPath = { edges: new Set(), path: [], weight: 0 };
+let currentMultiplePaths = { paths: [], allEdges: new Set(), companyName: '' };
 let currentTarget = null;
 let highlightedNodes = new Set();
 let is3DMode = true; // Track current view mode
 let frozenZPositions = new Map(); // Store Z positions when in 2D mode
 let hoveredNode = null;
 let hoveredNodeOriginalScale = null;
-let networkRotationSpeed = 0.001; // Slow clockwise rotation speed
 
 // Clear any existing nodes to prevent duplicates
 nodeGroup.clear();
@@ -403,34 +389,14 @@ nodeObjs.clear();
 nodeAnimations.clear();
 
 // Create nodes
-sample.nodes.forEach((n, idx) => {
+sample.nodes.forEach((n) => {
   if (nodeObjs.has(n.id)) return;
-  const glowNode = new THREE.Group();
-  let nodeColor = (n.id === 'me') ? 0x4CAF50 : 0x4DA6FF;
-  let outerGlow = null, innerGlow = null;
 
-  if (!n.profilePic) {
-    const glowSize = n.id === 'me' ? 24 : 18;
-    outerGlow = new THREE.Mesh(
-      new THREE.SphereGeometry(glowSize, 16, 12),
-      new THREE.MeshBasicMaterial({ 
-        color: nodeColor, transparent: true, opacity: n.id === 'me' ? 0.08 : 0.05,
-        side: THREE.BackSide, blending: THREE.AdditiveBlending, fog: false
-      })
-    );
-    glowNode.add(outerGlow);
+  const individualNode = new THREE.Group();
 
-    const innerGlowSize = n.id === 'me' ? 15 : 12;
-    innerGlow = new THREE.Mesh(
-      new THREE.SphereGeometry(innerGlowSize, 16, 12),
-      new THREE.MeshBasicMaterial({ 
-        color: nodeColor, transparent: true, opacity: n.id === 'me' ? 0.15 : 0.1,
-        blending: THREE.AdditiveBlending, fog: false
-      })
-    );
-    glowNode.add(innerGlow);
-  }
-  
+  // Base color for non-profile-picture fallbacks
+  const nodeColor = (n.id === 'me') ? 0x4CAF50 : 0x4DA6FF;
+
   let core;
   if (n.profilePic) {
     const loader = new THREE.TextureLoader();
@@ -453,31 +419,11 @@ sample.nodes.forEach((n, idx) => {
         side: THREE.DoubleSide, depthWrite: true, depthTest: true, alphaTest: 0.5
       });
       core = new THREE.Mesh(nodeGeometry, nodeMaterial);
-      core.renderOrder = 100;
       core.material.depthWrite = true;
       core.material.depthTest = true;
       core.material.transparent = false;
       core.material.opacity = 1.0;
-
-      const glowSizes = n.id === 'me' ? [40, 35, 30] : [32, 28, 24];
-      const glowOpacities = n.id === 'me' ? [0.15, 0.2, 0.25] : [0.1, 0.15, 0.2];
-      glowSizes.forEach((glowSize, index) => {
-        const innerRadius = nodeSize/2 + 2;
-        const outerRadius = glowSize/2;
-        const glowGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 32);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-          color: nodeColor, transparent: true, opacity: glowOpacities[index],
-          side: THREE.DoubleSide, depthWrite: false, depthTest: false,
-          blending: THREE.AdditiveBlending, fog: false
-        });
-        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        glow.position.z = -0.1 - (index * 0.05);
-        glow.renderOrder = 1;
-        glow.userData.isGlow = true;
-        glow.userData.isBillboard = true;
-        glow.userData.glowIndex = index;
-        glowNode.add(glow);
-      });
+      core.renderOrder = 10;
       core.userData.isBillboard = true;
     } catch (err) {
       const coreSize = n.id === 'me' ? 8 : 6;
@@ -492,31 +438,60 @@ sample.nodes.forEach((n, idx) => {
     core = new THREE.Mesh(coreGeometry, coreMaterial);
   }
 
-  glowNode.add(core);
-  
+  // Mark "core" so hover logic can scale the right meshes
+  core.userData.isCore = true;
+  individualNode.add(core);
+
+  // Add glow outline
+  const nodeSize = n.id === 'me' ? 30 : 24;
+  const glowRadius = nodeSize/2 + 3;
+  const glowGeometry = new THREE.RingGeometry(glowRadius - 2, glowRadius, 32);
+  const glowColor = n.id === 'me' ? 0x4CAF50 : 0x4DA6FF;
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: glowColor,
+    transparent: true,
+    opacity: 0.6,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    depthTest: true
+  });
+  const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+  glow.position.z = -0.1;
+  glow.renderOrder = 1;
+  glow.userData.isGlow = true;
+  individualNode.add(glow);
+
+  // Layout
   if (n.id === 'me') {
-    glowNode.position.set(0, 0, 0);
+    individualNode.position.set(0, 0, 0);
   } else {
     const phi = Math.acos(2 * Math.random() - 1);
     const theta = 2 * Math.PI * Math.random();
     const radius = 120 + Math.random() * 120;
-    glowNode.position.set(
+    individualNode.position.set(
       radius * Math.sin(phi) * Math.cos(theta),
       radius * Math.sin(phi) * Math.sin(theta),
       radius * Math.cos(phi)
     );
   }
-  glowNode.renderOrder = 10;
-  nodeGroup.add(glowNode);
-  nodeObjs.set(n.id, glowNode);
+  individualNode.renderOrder = 10;
+  nodeGroup.add(individualNode);
+  nodeObjs.set(n.id, individualNode);
 
+  // Label
   const labelDiv = document.createElement("div");
   labelDiv.className = "tooltip";
-  let labelText = n.id === 'me' ? 'You' : n.name;
-  if (n.id !== 'me') {
-    if (n.role && n.role !== 'Unknown' && n.company && n.company !== 'Unknown') labelText += `, ${n.role} @ ${n.company}`;
-    else if (n.company && n.company !== 'Unknown') labelText += ` @ ${n.company}`;
-    else if (n.role && n.role !== 'Unknown') labelText += `, ${n.role}`;
+  let labelText = n.name;
+  if (n.id === 'me') {
+    labelText = 'You';
+  } else {
+    if (n.role && n.role !== 'Unknown' && n.company && n.company !== 'Unknown') {
+      labelText += `, ${n.role} @ ${n.company}`;
+    } else if (n.company && n.company !== 'Unknown') {
+      labelText += ` @ ${n.company}`;
+    } else if (n.role && n.role !== 'Unknown') {
+      labelText += `, ${n.role}`;
+    }
   }
   labelDiv.textContent = labelText;
   if (n.id === 'me') {
@@ -530,19 +505,22 @@ sample.nodes.forEach((n, idx) => {
   }
   const label = new CSS2DObject(labelDiv);
   label.position.set(0, -15, 0);
-  glowNode.add(label);
-  glowNode.userData = { nodeId: n.id, label: labelDiv, originalScale: 1 };
+  individualNode.add(label);
+
+  individualNode.userData = {
+    nodeId: n.id,
+    label: labelDiv,
+    originalScale: 1,
+    profileUrl: n.profileUrl
+  };
 
   nodeAnimations.set(n.id, {
-    originalPos: glowNode.position.clone(),
+    originalPos: individualNode.position.clone(),
     timeOffset: Math.random()*Math.PI*2,
     amplitude: 2 + Math.random()*3,
     frequency: 0.5 + Math.random()*0.5,
     scaleAmplitude: 0.1 + Math.random()*0.1,
     scaleFrequency: 0.3 + Math.random()*0.4,
-    glowNode: glowNode,
-    outerGlow: outerGlow,
-    innerGlow: innerGlow,
     core: core
   });
 });
@@ -555,7 +533,7 @@ sample.edges.forEach(e => {
   if (!s || !t) return;
   const geom = new THREE.BufferGeometry().setFromPoints([s.position, t.position]);
   const color = 0x9aa7c6, opacity = 0.6;
-  const line = new THREE.Line(geom, new THREE.LineBasicMaterial({ 
+  const line = new THREE.Line(geom, new THREE.LineBasicMaterial({
     color, transparent: true, opacity, depthTest: true, depthWrite: true, alphaTest: 0.1
   }));
   line.renderOrder = -10;
@@ -589,21 +567,105 @@ function zoomToOptimalPath() {
   function animateCamera() {
     const elapsed = performance.now() - startTime;
     progress = Math.min(elapsed / duration, 1);
-    const ease = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
-    const p = ease(progress);
-    camera.position.lerpVectors(startPosition, newPosition, p);
-    controls.target.lerpVectors(startTarget, newTarget, p);
+    const easeInOutCubic = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const easedProgress = easeInOutCubic(progress);
+    camera.position.lerpVectors(startPosition, newPosition, easedProgress);
+    controls.target.lerpVectors(startTarget, newTarget, easedProgress);
     controls.update();
-    if (progress < 1) requestAnimationFrame(animateCamera);
+    if (progress < 1) {
+      requestAnimationFrame(animateCamera);
+    }
   }
   animateCamera();
 }
 
-// Find optimal path from 'me' to a specific target node
+// Zoom in on multiple optimal paths
+function zoomToMultiplePaths() {
+  if (!currentMultiplePaths || currentMultiplePaths.paths.length === 0) return;
+
+  const allPathNodes = new Set();
+  currentMultiplePaths.paths.forEach(pathData => {
+    pathData.path.forEach(nodeId => allPathNodes.add(nodeId));
+  });
+
+  const pathNodes = Array.from(allPathNodes).map(nodeId => nodeObjs.get(nodeId)).filter(Boolean);
+  if (pathNodes.length === 0) return;
+
+  const box = new THREE.Box3().setFromPoints(pathNodes.map(node => node.position));
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const distance = maxDim * 2;
+
+  const targetPosition = center.clone();
+  targetPosition.z += distance;
+
+  const originalPosition = camera.position.clone();
+  const originalTarget = controls.target.clone();
+
+  const startTime = Date.now();
+  const duration = 1000;
+
+  function animateCamera() {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+    camera.position.lerpVectors(originalPosition, targetPosition, easeProgress);
+    controls.target.lerpVectors(originalTarget, center, easeProgress);
+    controls.update();
+
+    if (progress < 1) requestAnimationFrame(animateCamera);
+  }
+
+  animateCamera();
+}
+
+// Zoom in on a specific path from multiple paths
+function zoomToSpecificPath(pathIndex) {
+  if (!currentMultiplePaths || !currentMultiplePaths.paths[pathIndex]) return;
+
+  const pathData = currentMultiplePaths.paths[pathIndex];
+  const pathNodes = pathData.path.map(nodeId => nodeObjs.get(nodeId)).filter(Boolean);
+  if (pathNodes.length === 0) return;
+
+  const box = new THREE.Box3().setFromPoints(pathNodes.map(node => node.position));
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const distance = maxDim * 2;
+
+  const targetPosition = center.clone();
+  targetPosition.z += distance;
+
+  const originalPosition = camera.position.clone();
+  const originalTarget = controls.target.clone();
+
+  const startTime = Date.now();
+  const duration = 1000;
+
+  function animateCamera() {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+    camera.position.lerpVectors(originalPosition, targetPosition, easeProgress);
+    controls.target.lerpVectors(originalTarget, center, easeProgress);
+    controls.update();
+
+    if (progress < 1) requestAnimationFrame(animateCamera);
+  }
+
+  animateCamera();
+}
+
+// Find optimal path from 'me' to a specific target node (greedy best-first by cumulative weight)
 function findOptimalPathToTarget(targetId) {
-  if (targetId === 'me') return { edges: new Set(), path: ['me'] };
+  if (targetId === 'me') return { edges: new Set(), path: ['me'], weight: 0 };
+
   const visited = new Set();
   const queue = [{ node: 'me', path: ['me'], weight: 0 }];
+
   while (queue.length > 0) {
     const { node, path, weight } = queue.shift();
     if (node === targetId) {
@@ -611,17 +673,53 @@ function findOptimalPathToTarget(targetId) {
       for (let i = 0; i < path.length - 1; i++) {
         optimalEdges.add(`${path[i]}-${path[i + 1]}`);
       }
-      return { edges: optimalEdges, path };
+      return { edges: optimalEdges, path, weight };
     }
     if (visited.has(node)) continue;
     visited.add(node);
-    const outgoing = sample.edges.filter(e => e.source === node && !visited.has(e.target));
-    for (const edge of outgoing) {
-      queue.push({ node: edge.target, path: [...path, edge.target], weight: weight + edge.weight });
+
+    const outgoingEdges = sample.edges.filter(e => e.source === node && !visited.has(e.target));
+    for (const edge of outgoingEdges) {
+      const newWeight = weight + edge.weight;
+      queue.push({
+        node: edge.target,
+        path: [...path, edge.target],
+        weight: newWeight
+      });
     }
     queue.sort((a, b) => b.weight - a.weight);
   }
-  return { edges: new Set(), path: [] };
+  return { edges: new Set(), path: [], weight: 0 };
+}
+
+// Find all optimal paths to a company (multiple people at same company)
+function findAllOptimalPathsToCompany(companyName) {
+  const companyNodes = sample.nodes.filter(node =>
+    node.company && node.company.toLowerCase().includes(companyName.toLowerCase())
+  );
+  if (companyNodes.length === 0) {
+    return { paths: [], allEdges: new Set() };
+  }
+
+  const allPaths = [];
+  const allEdges = new Set();
+
+  companyNodes.forEach(targetNode => {
+    const path = findOptimalPathToTarget(targetNode.id);
+    if (path.path.length > 0) {
+      allPaths.push({
+        targetId: targetNode.id,
+        targetName: targetNode.name,
+        path: path.path,
+        edges: path.edges,
+        weight: path.weight || 0
+      });
+      path.edges.forEach(edge => allEdges.add(edge));
+    }
+  });
+
+  allPaths.sort((a, b) => b.weight - a.weight);
+  return { paths: allPaths, allEdges: allEdges };
 }
 
 function updateEdges(){
@@ -638,28 +736,25 @@ function updateEdges(){
 function highlightNode(nodeId, highlightType = 'none') {
   const node = nodeObjs.get(nodeId);
   if (!node) return;
+
   const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
+
   if (highlightType === 'target') {
     highlightedNodes.add(nodeId);
     node.children.forEach(child => {
-      if (!child.material) return;
-      if (child.userData.isBillboard) {
-        // keep profile pic unchanged
-      } else if (child.userData.isGlow) {
-        child.material.color.setHex(0xFF7043);
-        child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0);
-      } else {
-        child.material.color.setHex(0xFF7043);
+      if (child.material) {
+        if (child.userData.isBillboard) {
+          child.material.color.setHex(0xffffff);
+          child.material.opacity = 1.0;
+        } else if (child.userData.isGlow) {
+          child.material.color.setHex(0xFF7043);
+          child.material.opacity = 0.8;
+        } else {
+          child.material.color.setHex(0xFF7043);
+        }
+        child.userData.isHighlighted = true;
       }
     });
-    if (node.userData?.glowNode) {
-      node.userData.glowNode.children.forEach(child => {
-        if (child.material?.emissive) {
-          child.material.emissive.setHex(0x331100);
-          child.material.emissiveIntensity = 0.3;
-        }
-      });
-    }
     if (node.userData?.label) {
       node.userData.label.style.display = 'block';
       node.userData.label.style.visibility = 'visible';
@@ -668,44 +763,40 @@ function highlightNode(nodeId, highlightType = 'none') {
   } else if (highlightType === 'intermediate') {
     highlightedNodes.add(nodeId);
     node.children.forEach(child => {
-      if (!child.material) return;
-      if (child.userData.isBillboard) {
-      } else if (child.userData.isGlow) {
-        child.material.color.setHex(0xffd700);
-        child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0);
-      } else {
-        child.material.color.setHex(0xffd700);
+      if (child.material) {
+        if (child.userData.isBillboard) {
+          child.material.color.setHex(0xffffff);
+          child.material.opacity = 1.0;
+        } else if (child.userData.isGlow) {
+          child.material.color.setHex(0xffd700);
+          child.material.opacity = 0.8;
+        } else {
+          child.material.color.setHex(0xffd700);
+        }
+        child.userData.isHighlighted = true;
       }
     });
-    if (node.userData?.glowNode) {
-      node.userData.glowNode.children.forEach(child => {
-        if (child.material?.emissive) {
-          child.material.emissive.setHex(0x332200);
-          child.material.emissiveIntensity = 0.2;
-        }
-      });
-    }
   } else {
     highlightedNodes.delete(nodeId);
+    if (nodeId !== 'me' && node.userData?.label) {
+      node.userData.label.style.display = 'none';
+      node.userData.label.style.visibility = 'hidden';
+      node.userData.label.style.opacity = '0';
+    }
     node.children.forEach(child => {
-      if (!child.material) return;
-      if (child.userData.isBillboard) {
-      } else if (child.userData.isGlow) {
-        child.material.color.setHex(originalColor);
-        const originalOpacities = nodeId === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
-        child.material.opacity = originalOpacities[child.userData.glowIndex] || 0.3;
-      } else {
-        child.material.color.setHex(originalColor);
+      if (child.material) {
+        if (child.userData.isBillboard) {
+          child.material.color.setHex(0xffffff);
+          child.material.opacity = 1.0;
+        } else if (child.userData.isGlow) {
+          child.material.color.setHex(originalColor);
+          child.material.opacity = 0.6;
+        } else {
+          child.material.color.setHex(originalColor);
+        }
+        child.userData.isHighlighted = false;
       }
     });
-    if (node.userData?.glowNode) {
-      node.userData.glowNode.children.forEach(child => {
-        if (child.material?.emissive) {
-          child.material.emissive.setHex(0x000000);
-          child.material.emissiveIntensity = 0;
-        }
-      });
-    }
   }
 }
 
@@ -718,8 +809,25 @@ function updateOptimalPath(targetId) {
       prev.userData.label.style.opacity = '0';
     }
   }
+
   highlightedNodes.forEach(nodeId => highlightNode(nodeId, 'none'));
   highlightedNodes.clear();
+
+  currentMultiplePaths = null;
+
+  // Clear any existing optimal path cylinders
+  edgeGroup.children.forEach(child => {
+    if (child.userData && child.userData.isOptimalEdge) {
+      edgeGroup.remove(child);
+    }
+  });
+
+  hiddenNodes.forEach(nodeId => {
+    const node = nodeObjs.get(nodeId);
+    if (node) node.visible = true;
+  });
+  hiddenNodes.clear();
+
   currentTarget = targetId;
   currentOptimalPath = findOptimalPathToTarget(targetId);
 
@@ -743,7 +851,12 @@ function updateOptimalPath(targetId) {
         const length = direction.length();
         const midpoint = new THREE.Vector3().addVectors(s.position, t.position).multiplyScalar(0.5);
         const cylinderGeometry = new THREE.CylinderGeometry(0.6, 0.6, length, 8);
-        const cylinderMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700, transparent: true, opacity: 0.9 });
+        const cylinderMaterial = new THREE.MeshBasicMaterial({
+          color: 0xffd700,
+          transparent: true,
+          opacity: 0.9
+        });
+
         const cylinder = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
         cylinder.position.copy(midpoint);
         cylinder.lookAt(t.position);
@@ -768,8 +881,90 @@ function updateOptimalPath(targetId) {
     }
   });
 
+  updateEdges();
   updateSidebarInfo();
-  zoomToOptimalPath();
+
+  if (isPathOnlyMode) {
+    showOnlyOptimalPathNodes();
+  }
+}
+
+// Update multiple optimal paths for a company
+function updateMultipleOptimalPaths(companyName) {
+  highlightedNodes.forEach(nodeId => highlightNode(nodeId, 'none'));
+  highlightedNodes.clear();
+
+  hiddenNodes.forEach(nodeId => {
+    const node = nodeObjs.get(nodeId);
+    if (node) node.visible = true;
+  });
+  hiddenNodes.clear();
+
+  // Reset edges first
+  edgeLines.forEach((line, edgeKey) => {
+    line.visible = true;
+    const [sourceId, targetId] = edgeKey.split('-');
+    let color, opacity;
+    if (sourceId === 'me' || targetId === 'me') { color = 0x6b9bd2; opacity = 0.8; }
+    else { color = 0x9aa7c6; opacity = 0.6; }
+    line.material.color.setHex(color);
+    line.material.opacity = opacity;
+  });
+
+  // Clear cylinders
+  edgeGroup.children.forEach(child => {
+    if (child.userData && child.userData.isOptimalEdge) {
+      edgeGroup.remove(child);
+    }
+  });
+
+  const multiplePaths = findAllOptimalPathsToCompany(companyName);
+
+  currentTarget = null;
+  currentOptimalPath = { edges: new Set(), path: [], weight: 0 };
+  currentMultiplePaths = {
+    paths: multiplePaths.paths,
+    allEdges: multiplePaths.allEdges,
+    companyName: companyName
+  };
+
+  // Highlight nodes across all paths
+  multiplePaths.paths.forEach((pathData) => {
+    pathData.path.forEach((nodeId) => {
+      if (nodeId !== 'me') {
+        if (nodeId === pathData.targetId) highlightNode(nodeId, 'target');
+        else highlightNode(nodeId, 'intermediate');
+      }
+    });
+  });
+
+  // Make edges touching target nodes yellow
+  sample.edges.forEach(e => {
+    const line = edgeLines.get(`${e.source}-${e.target}`);
+    if (!line) return;
+    const isTargetEdge = multiplePaths.paths.some(pathData =>
+      pathData.targetId === e.source || pathData.targetId === e.target
+    );
+    if (isTargetEdge) {
+      line.visible = true;
+      line.material.color.setHex(0xffd700);
+      line.material.opacity = 0.8;
+    } else {
+      line.visible = true;
+      let color, opacity;
+      if (e.weight >= 0.7) { color = 0x4da6ff; opacity = 0.9; }
+      else if (e.weight >= 0.5) { color = 0x6b9bd2; opacity = 0.8; }
+      else { color = 0x9aa7c6; opacity = 0.6; }
+      line.material.color.setHex(color);
+      line.material.opacity = opacity;
+    }
+  });
+
+  updateMultiplePathsSidebarInfo();
+
+  if (isPathOnlyMode) {
+    showOnlyMultiplePathsNodes();
+  }
 }
 
 function updateSidebarInfo() {
@@ -791,11 +986,48 @@ function updateSidebarInfo() {
   optimalPathDiv.onclick = zoomToOptimalPath;
 }
 
+// Update sidebar info for multiple paths
+function updateMultiplePathsSidebarInfo() {
+  const optimalPathDiv = document.querySelector('.optimal-path-info');
+  if (!optimalPathDiv) return;
+
+  if (!currentMultiplePaths || currentMultiplePaths.paths.length === 0) {
+    optimalPathDiv.style.display = 'none';
+    return;
+  }
+
+  const pathNames = currentMultiplePaths.paths.map((pathData, index) => {
+    const pathNodeNames = pathData.path.map(id => {
+      const node = sample.nodes.find(n => n.id === id);
+      return node ? node.name : id;
+    });
+    return `<span class="clickable-path" data-path-index="${index}" style="color: #FFD700; cursor: pointer; text-decoration: underline; display: block; margin: 4px 0; padding: 2px 4px; border-radius: 4px; background: rgba(255,215,0,0.1);">${pathNodeNames.join(' → ')} (${pathData.targetName})</span>`;
+  });
+
+  optimalPathDiv.style.display = 'block';
+  optimalPathDiv.innerHTML = `
+    <strong>Optimal Paths to ${currentMultiplePaths.companyName}:</strong><br>
+    ${pathNames.join('')}
+  `;
+
+  optimalPathDiv.querySelectorAll('.clickable-path').forEach((pathElement, index) => {
+    pathElement.addEventListener('click', () => zoomToSpecificPath(index));
+  });
+}
+
 // Hover effect functions
 function applyHoverEffect(node) {
   if (!node.userData) return;
-  hoveredNodeOriginalScale = node.scale.clone();
-  node.scale.multiplyScalar(1.3);
+
+  hoveredNodeOriginalScale = {};
+
+  node.children.forEach(child => {
+    if (child.userData.isGlow || child.userData.isCore) {
+      hoveredNodeOriginalScale[child.uuid] = child.scale.clone();
+      child.scale.multiplyScalar(1.3);
+    }
+  });
+
   if (node.userData.label) {
     node.userData.label.style.display = 'block';
     node.userData.label.style.visibility = 'visible';
@@ -805,7 +1037,17 @@ function applyHoverEffect(node) {
 }
 function resetHoverEffect(node) {
   if (!node.userData) return;
-  if (hoveredNodeOriginalScale) node.scale.copy(hoveredNodeOriginalScale);
+
+  if (hoveredNodeOriginalScale && typeof hoveredNodeOriginalScale === 'object') {
+    node.children.forEach(child => {
+      if (child.userData.isGlow || child.userData.isCore) {
+        if (hoveredNodeOriginalScale[child.uuid]) {
+          child.scale.copy(hoveredNodeOriginalScale[child.uuid]);
+        }
+      }
+    });
+  }
+
   if (node.userData.label && node.userData.nodeId !== 'me' && node.userData.nodeId !== currentTarget) {
     node.userData.label.style.display = 'none';
     node.userData.label.style.visibility = 'hidden';
@@ -845,7 +1087,7 @@ function pickNode(ev){
 function onPointerDown(ev){
   const obj = pickNode(ev);
   if(obj) {
-    const camDir = new THREE.Vector3(); 
+    const camDir = new THREE.Vector3();
     camera.getWorldDirection(camDir);
     dragPlane.setFromNormalAndCoplanarPoint(camDir, obj.position);
     raycaster.ray.intersectPlane(dragPlane, planeIntersect);
@@ -901,42 +1143,223 @@ function onPointerUp(ev){
     try { renderer.domElement.releasePointerCapture?.(ev.pointerId); } catch {}
   }
 }
+
+// Double-click handler to open LinkedIn profile
+function onDoubleClick(ev) {
+  setPointer(ev);
+  raycaster.setFromCamera(pointer, camera);
+  const nodeArray = Array.from(nodeObjs.values());
+  const intersects = raycaster.intersectObjects(nodeArray, true);
+
+  if (intersects.length > 0) {
+    let parent = intersects[0].object.parent;
+    while (parent && !nodeArray.includes(parent)) {
+      parent = parent.parent;
+    }
+    if (parent?.userData?.profileUrl) {
+      window.open(parent.userData.profileUrl, '_blank');
+      console.log(`Opening LinkedIn profile for ${parent.userData.nodeId}: ${parent.userData.profileUrl}`);
+    } else if (parent?.userData?.nodeId === 'me') {
+      console.log('You node clicked - no LinkedIn profile URL available');
+    } else {
+      console.log('No LinkedIn profile URL available for this node');
+    }
+  }
+}
+
 renderer.domElement.addEventListener('pointerdown', onPointerDown);
 renderer.domElement.addEventListener('pointermove', onPointerMove);
 renderer.domElement.addEventListener('pointerup', onPointerUp);
 renderer.domElement.addEventListener('pointerleave', onPointerUp);
+renderer.domElement.addEventListener('dblclick', onDoubleClick);
 
 // Search box (manual)
 const searchInput = document.getElementById('search');
 const highlightButton = document.getElementById('highlight');
 function searchAndHighlight() {
-  const searchTerm = searchInput.value.toLowerCase().trim();
+  const searchTerm = (searchInput?.value || '').toLowerCase().trim();
   if (!searchTerm) return;
-  const matchingNode = sample.nodes.find(node => 
-    node.name.toLowerCase().includes(searchTerm) || 
-    (node.company && node.company.toLowerCase().includes(searchTerm))
+
+  const matchingNode = sample.nodes.find(node =>
+    node.name.toLowerCase().includes(searchTerm)
   );
   if (matchingNode) {
     updateOptimalPath(matchingNode.id);
-  } else {
-    const availableNames = sample.nodes.map(n => n.name).join(', ');
-    const availableCompanies = sample.nodes.filter(n => n.company).map(n => n.company).join(', ');
-    alert(`No match found for "${searchTerm}".\n\nTry:\nNames: ${availableNames}\nCompanies: ${availableCompanies}`);
+    return;
   }
+
+  const companyNodes = sample.nodes.filter(node =>
+    node.company && node.company.toLowerCase().includes(searchTerm)
+  );
+
+  if (companyNodes.length > 0) {
+    updateMultipleOptimalPaths(searchTerm);
+    return;
+  }
+
+  const availableNames = sample.nodes.map(n => n.name).join(', ');
+  const availableCompanies = sample.nodes.filter(n => n.company).map(n => n.company).join(', ');
+  alert(`No match found for "${searchTerm}".\n\nTry:\nNames: ${availableNames}\nCompanies: ${availableCompanies}`);
 }
-highlightButton.addEventListener('click', searchAndHighlight);
-searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') searchAndHighlight(); });
+if (highlightButton) {
+  highlightButton.addEventListener('click', searchAndHighlight);
+  searchInput?.addEventListener('keypress', (e) => { if (e.key === 'Enter') searchAndHighlight(); });
+}
 
 // 2D/3D Toggle functionality
 const viewToggle3D = document.getElementById('viewToggle');
 const viewToggle2D = document.getElementById('viewToggle2d');
-viewToggle3D.addEventListener('click', () => switchTo3D());
-viewToggle2D.addEventListener('click', () => switchTo2D());
-function switchTo3D() { if (is3DMode) return; is3DMode = true; updateToggleButtons(); updateControlsForMode(); ensureRenderOrder(); animateToLayout('3d'); }
-function switchTo2D() { if (!is3DMode) return; is3DMode = false; updateToggleButtons(); updateControlsForMode(); ensureRenderOrder(); animateToLayout('2d'); }
+viewToggle3D?.addEventListener('click', () => switchTo3D());
+viewToggle2D?.addEventListener('click', () => switchTo2D());
+
+// Collapsible sidebar functionality
+const sidebar = document.getElementById('sidebar');
+const sidebarHeader = document.getElementById('sidebarHeader');
+const dropdownArrow = document.getElementById('dropdownArrow');
+
+let isSidebarCollapsed = true;
+sidebarHeader?.addEventListener('click', () => {
+  isSidebarCollapsed = !isSidebarCollapsed;
+  if (isSidebarCollapsed) {
+    sidebar?.classList.add('collapsed');
+    dropdownArrow?.classList.remove('expanded');
+  } else {
+    sidebar?.classList.remove('collapsed');
+    dropdownArrow?.classList.add('expanded');
+  }
+});
+
+// Path-only toggle functionality
+const pathOnlyToggle = document.getElementById('pathOnlyToggle');
+let isPathOnlyMode = false;
+let hiddenNodes = new Set();
+
+pathOnlyToggle?.addEventListener('click', () => {
+  isPathOnlyMode = !isPathOnlyMode;
+  if (isPathOnlyMode) {
+    showOnlyOptimalPathNodes();
+    pathOnlyToggle.classList.add('active');
+    pathOnlyToggle.textContent = 'Show All';
+  } else {
+    showAllNodes();
+    pathOnlyToggle.classList.remove('active');
+    pathOnlyToggle.textContent = 'Path Only';
+  }
+});
+
+function showOnlyOptimalPathNodes() {
+  if (currentMultiplePaths && currentMultiplePaths.paths.length > 0) {
+    showOnlyMultiplePathsNodes();
+    return;
+  }
+  if (!currentTarget || currentOptimalPath.path.length === 0) return;
+
+  hiddenNodes.forEach(nodeId => {
+    const node = nodeObjs.get(nodeId);
+    if (node) node.visible = true;
+  });
+  hiddenNodes.clear();
+
+  const visibleNodeIds = new Set(['me', ...currentOptimalPath.path]);
+  nodeObjs.forEach((node, nodeId) => {
+    if (!visibleNodeIds.has(nodeId)) {
+      node.visible = false;
+      hiddenNodes.add(nodeId);
+    } else {
+      node.visible = true;
+      hiddenNodes.delete(nodeId);
+    }
+  });
+
+  edgeLines.forEach((line, edgeKey) => {
+    const [sourceId, targetId] = edgeKey.split('-');
+    const shouldShowEdge = visibleNodeIds.has(sourceId) && visibleNodeIds.has(targetId);
+    line.visible = shouldShowEdge;
+  });
+
+  edgeGroup.children.forEach(child => {
+    if (child.userData && child.userData.isOptimalEdge) {
+      const [sourceId, targetId] = child.userData.edgeKey.split('-');
+      const shouldShowEdge = visibleNodeIds.has(sourceId) && visibleNodeIds.has(targetId);
+      child.visible = shouldShowEdge;
+    }
+  });
+}
+
+function showOnlyMultiplePathsNodes() {
+  if (!currentMultiplePaths || currentMultiplePaths.paths.length === 0) return;
+
+  hiddenNodes.forEach(nodeId => {
+    const node = nodeObjs.get(nodeId);
+    if (node) node.visible = true;
+  });
+  hiddenNodes.clear();
+
+  const visibleNodeIds = new Set(['me']);
+  currentMultiplePaths.paths.forEach(pathData => {
+    pathData.path.forEach(nodeId => visibleNodeIds.add(nodeId));
+  });
+
+  nodeObjs.forEach((node, nodeId) => {
+    if (!visibleNodeIds.has(nodeId)) {
+      node.visible = false;
+      hiddenNodes.add(nodeId);
+    } else {
+      node.visible = true;
+      hiddenNodes.delete(nodeId);
+    }
+  });
+
+  edgeLines.forEach((line, edgeKey) => {
+    const [sourceId, targetId] = edgeKey.split('-');
+    const shouldShowEdge = visibleNodeIds.has(sourceId) && visibleNodeIds.has(targetId);
+    line.visible = shouldShowEdge;
+  });
+
+  edgeGroup.children.forEach(child => {
+    if (child.userData && child.userData.isOptimalEdge) {
+      const [sourceId, targetId] = child.userData.edgeKey.split('-');
+      const shouldShowEdge = visibleNodeIds.has(sourceId) && visibleNodeIds.has(targetId);
+      child.visible = shouldShowEdge;
+    }
+  });
+}
+
+function showAllNodes() {
+  nodeObjs.forEach((node) => { node.visible = true; });
+  edgeLines.forEach((line) => { line.visible = true; });
+  edgeGroup.children.forEach(child => {
+    if (child.userData && child.userData.isOptimalEdge) {
+      child.visible = true;
+    }
+  });
+  hiddenNodes.clear();
+}
+
+// Switch to 3D mode
+function switchTo3D() {
+  if (is3DMode) return;
+  is3DMode = true;
+  updateToggleButtons();
+  updateControlsForMode();
+  ensureRenderOrder();
+  animateToLayout('3d');
+}
+
+// Switch to 2D mode
+function switchTo2D() {
+  if (!is3DMode) return;
+  is3DMode = false;
+  updateToggleButtons();
+  updateControlsForMode();
+  ensureRenderOrder();
+  animateToLayout('2d');
+}
+
+// Update toggle button states
 function updateToggleButtons() {
-  viewToggle3D.classList.toggle('active', is3DMode);
-  viewToggle2D.classList.toggle('active', !is3DMode);
+  viewToggle3D?.classList.toggle('active', is3DMode);
+  viewToggle2D?.classList.toggle('active', !is3DMode);
 }
 function updateControlsForMode() {
   if (is3DMode) {
@@ -950,7 +1373,7 @@ function updateControlsForMode() {
 function ensureRenderOrder() {
   nodeObjs.forEach((node) => {
     node.children.forEach(child => {
-      if (child.userData.isBillboard && child.material) {
+      if (child.userData?.isBillboard && child.material) {
         child.renderOrder = 100;
         child.material.depthWrite = true;
         child.material.depthTest = true;
@@ -1073,19 +1496,9 @@ function animate(){
     const s = 1 + Math.sin(t*a.scaleFrequency + a.timeOffset)*a.scaleAmplitude;
     node.scale.setScalar(s);
     node.rotation.z = Math.sin(t*0.2 + a.timeOffset)*0.1;
-
-    if(a.outerGlow && a.innerGlow && a.core) {
-      const glowPulse = 1 + Math.sin(t*0.8 + a.timeOffset) * 0.3;
-      const opacityPulse = 0.1 + Math.sin(t*1.2 + a.timeOffset) * 0.05;
-      a.outerGlow.scale.setScalar(glowPulse);
-      a.outerGlow.material.opacity = opacityPulse;
-      a.innerGlow.scale.setScalar(glowPulse * 0.8);
-      a.innerGlow.material.opacity = 0.3 + Math.sin(t*1.5 + a.timeOffset) * 0.1;
-      a.core.scale.setScalar(glowPulse * 0.6);
-    }
   });
 
-  // Update optimal path cylinders
+  // Update cylinders for single optimal path
   if (currentOptimalPath && currentOptimalPath.edges.size > 0) {
     edgeGroup.children.forEach(child => {
       if (child.userData?.isOptimalEdge) {
@@ -1105,54 +1518,45 @@ function animate(){
     });
   }
 
-  // Gentle spin in 3D
-  if (is3DMode) {
-    const youNode = nodeObjs.get('me');
-    if (youNode) {
-      const youPosition = youNode.position.clone();
-      nodeObjs.forEach((node, nodeId) => {
-        if (nodeId !== 'me') {
-          const relativePos = node.position.clone().sub(youPosition);
-          const rotationMatrix = new THREE.Matrix4().makeRotationY(networkRotationSpeed);
-          relativePos.applyMatrix4(rotationMatrix);
-          node.position.copy(youPosition.clone().add(relativePos));
-        }
-      });
-    }
-  }
-
-  // Pulse highlights
+  // Pulse highlighted nodes
   highlightedNodes.forEach(nodeId => {
-    if (nodeId === 'me') return;
-    const node = nodeObjs.get(nodeId);
-    if (!node) return;
-    const pulseScale = 1 + Math.sin(t * 2) * 0.2;
-    node.scale.setScalar(pulseScale);
+    if (nodeId !== 'me') {
+      const node = nodeObjs.get(nodeId);
+      if (node) {
+        const pulseScale = 1 + Math.sin(t * 2) * 0.2;
+        node.scale.setScalar(pulseScale);
+      }
+    }
+  });
+
+  // Gentle pulsing for glow rings of non-highlighted nodes + face camera
+  nodeObjs.forEach((node) => {
     node.children.forEach(child => {
       if (child.userData?.isGlow) {
-        const isTarget = nodeId === currentTarget;
-        const glowPulse = isTarget ? 1 + Math.sin(t * 2.5) * 0.4 : 1 + Math.sin(t * 2.5) * 0.3;
-        const opacityPulse = 0.5 + Math.sin(t * 1.8) * 0.3;
-        child.scale.setScalar(glowPulse);
-        child.material.opacity = Math.min(opacityPulse, 1.0);
-        if (nodeId === currentTarget) child.material.color.setHex(0xFF7043);
-        else if (currentOptimalPath.path.includes(nodeId)) child.material.color.setHex(0xffd700);
-        else child.material.color.setHex(nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF);
+        if (!child.userData.isHighlighted) {
+          const glowPulse = 1 + Math.sin(t * 0.8) * 0.15;
+          const opacityPulse = 0.6 + Math.sin(t * 1.2) * 0.2;
+          child.scale.setScalar(glowPulse);
+          child.material.opacity = Math.min(opacityPulse, 0.8);
+        }
+        const worldPosition = new THREE.Vector3();
+        child.getWorldPosition(worldPosition);
+        const lookAtMatrix = new THREE.Matrix4();
+        lookAtMatrix.lookAt(worldPosition, camera.position, camera.up);
+        const quaternion = new THREE.Quaternion();
+        quaternion.setFromRotationMatrix(lookAtMatrix);
+        child.quaternion.copy(quaternion);
       }
     });
   });
 
-  // Reset others
+  // Reset non-highlighted nodes' profile picture color
   nodeObjs.forEach((node, nodeId) => {
     if (!highlightedNodes.has(nodeId) && nodeId !== 'me') {
-      node.scale.setScalar(1);
       node.children.forEach(child => {
-        if (child.userData?.isGlow) {
-          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
-          child.material.color.setHex(originalColor);
-          const originalOpacities = nodeId === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
-          child.material.opacity = originalOpacities[child.userData.glowIndex] || 0.3;
-          child.scale.setScalar(1);
+        if (child.userData?.isBillboard) {
+          child.material.color.setHex(0xffffff);
+          child.material.opacity = 1.0;
         }
       });
     }
@@ -1201,7 +1605,6 @@ function resolveTargetNodeFromLLM({ target_name, target_company, keywords }) {
   const tn = norm(target_name);
   const tc = norm(target_company);
 
-  // Scoring heuristic
   let best = null;
   let bestScore = -1;
 
@@ -1213,11 +1616,10 @@ function resolveTargetNodeFromLLM({ target_name, target_company, keywords }) {
     if (tn) {
       if (name === tn) score += 10;
       else if (name.includes(tn)) score += 6;
-      // First/last name partial matches:
       const tnParts = tn.split(/\s+/).filter(Boolean);
       let partsHit = 0;
       tnParts.forEach(p => { if (name.includes(p)) partsHit++; });
-      score += Math.min(partsHit, 2); // +0..2
+      score += Math.min(partsHit, 2);
     }
 
     if (tc) {
@@ -1225,7 +1627,6 @@ function resolveTargetNodeFromLLM({ target_name, target_company, keywords }) {
       else if (company.includes(tc)) score += 3;
     }
 
-    // Keywords bonus (if any)
     if (Array.isArray(keywords)) {
       const joined = `${name} ${company}`.toLowerCase();
       const hits = keywords.reduce((acc, k) => acc + (joined.includes(norm(k)) ? 1 : 0), 0);
@@ -1238,20 +1639,58 @@ function resolveTargetNodeFromLLM({ target_name, target_company, keywords }) {
     }
   }
 
-  // Threshold: if we looked for a person name, require at least some signal.
   if (tn && bestScore < 3) return null;
   return best;
 }
 
+/* Resolve best company from LLM search details to trigger multi-path highlighting */
+function resolveBestCompanyFromSearchDetails(details, nodes = (sample?.nodes || [])) {
+  const norm = s => (s || '').toLowerCase().trim();
+  const companiesFromLLM = Array.isArray(details?.companies) ? details.companies.map(norm) : [];
+  const keywords = Array.isArray(details?.keywords) ? details.keywords.map(norm) : [];
+  const queryText = norm(details?.linkedin_query || details?.query || '');
+
+  const candidates = new Set(companiesFromLLM);
+  keywords.forEach(k => candidates.add(k));
+  queryText.split(/[^a-z0-9\-\&\.\s]/i).forEach(tok => {
+    const t = norm(tok);
+    if (t && t.length > 2) candidates.add(t);
+  });
+
+  const graphCompanies = nodes
+    .filter(n => n.company && n.company !== 'Unknown')
+    .map(n => n.company);
+
+  let bestCompany = null;
+  let bestScore = 0;
+  const uniqueGraphCompanies = Array.from(new Set(graphCompanies));
+
+  uniqueGraphCompanies.forEach(gc => {
+    const gnc = norm(gc);
+    const isCandidateHit = Array.from(candidates).some(c =>
+      (c && gnc.includes(c)) || (c && c.includes(gnc))
+    );
+    if (isCandidateHit) {
+      const count = nodes.filter(n => n.company && norm(n.company).includes(gnc)).length;
+      if (count > bestScore) {
+        bestScore = count;
+        bestCompany = gc; // keep original casing from graph
+      }
+    }
+  });
+
+  return bestCompany; // null if none
+}
+
 // ---------- OpenAI helpers ----------
 const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
-const OPENAI_MODEL = 'gpt-4o-mini'; // stable + supports JSON mode
+const OPENAI_MODEL = 'gpt-4o-mini'; // stable + JSON mode
 
 async function getOpenAIKey() {
-  // Prefer loading from extension storage or env injected at build time
-  // e.g., const { openaiKey } = await chrome.storage.sync.get('openaiKey');
+  // Suggested: store/retrieve at runtime (never hardcode sensitive keys)
+  // const { openaiKey } = await chrome.storage.sync.get('openaiKey');
   // return openaiKey;
-  return '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'; // <-- PUT NOTHING SENSITIVE IN SOURCE. Load at runtime.
+  return ''
 }
 
 async function chatJSON(messages, { model = OPENAI_MODEL, temperature = 0 } = {}) {
@@ -1281,28 +1720,17 @@ async function chatJSON(messages, { model = OPENAI_MODEL, temperature = 0 } = {}
   }
 
   const text = payload?.choices?.[0]?.message?.content || '';
-  // Safe parse helper
-  const json = (() => {
-    try { return JSON.parse(text); } catch { return null; }
-  })();
-  if (!json) throw new Error(`[OpenAI ${model}] Expected JSON, got: ${text.slice(0, 200)}`);
-  return json;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`[OpenAI ${model}] Expected JSON, got: ${text.slice(0, 200)}`);
+  }
 }
-
-// ---------- Your router/user msg builders must exist ----------
-/* expected:
-   const ROUTER_SYSTEM_PROMPT = `...must return {"action":"path"|"search", ...}`;
-   function buildRouterUserMessage(query, knownPeople) { ... }
-   function resolveTargetNodeFromLLM(obj) { ... }
-   function linkedinSearchDummy({ keywords, query }) { ... }
-   function setLLMStatus(s) { ... }  function toast(s) { ... }
-*/
 
 // ---------- Main handler (2 OpenAI calls) ----------
 async function handleNLQuery(query) {
   if (!query || !query.trim()) return;
 
-  // Build known-people context (cap to avoid prompt bloat)
   const knownPeople = (sample?.nodes || [])
     .slice(0, 80)
     .map(n => ({ name: n?.name || '', company: n?.company || '' }));
@@ -1322,7 +1750,6 @@ async function handleNLQuery(query) {
     console.error('[Router] error:', err);
   }
 
-  // Fallback if router fails
   if (!routing || !routing.action) {
     const q = query.toLowerCase();
     const isPathy = /(introduce|intro|reach|to\s+talk\s+to|connect\s+me\s+to|path|route|how do i get to)/.test(q);
@@ -1383,7 +1810,8 @@ Return STRICT JSON ONLY:
   "locations": string[],         // 0-5 city/region strings
   "seniorities": string[],       // subset of ["intern","junior","mid","senior","lead","manager","director","vp","cxo"]
   "linkedin_query": string,      // single-line boolean query (e.g., title:(PM OR "product manager") AND company:(Stripe OR Google))
-  "reason": string
+  "reason": string,
+  "note": "If the query mentions a company (e.g., 'people at OpenAI'), include it in 'companies' exactly as the user would expect."
 }
 Keep values short. If a field is irrelevant, return an empty array or empty string.
 `.trim();
@@ -1422,24 +1850,44 @@ Keep values short. If a field is irrelevant, return an empty array or empty stri
       updateOptimalPath(targetNode.id);
       setLLMStatus(`PATH → ${targetNode.name}`);
     } else {
-      toast(`Couldn't find "${merged.target_name || merged.target_company || 'target'}" in your graph. Running LinkedIn search instead.`);
-      const kw = merged.keywords?.length ? merged.keywords : [merged.target_name, merged.target_company].filter(Boolean);
-      linkedinSearchDummy({ keywords: kw, query: merged.query });
-      setLLMStatus('SEARCH (fallback) started');
+      // Try multi-paths by company before falling back to LinkedIn search
+      const companyForPaths = resolveBestCompanyFromSearchDetails(
+        { companies: [merged.target_company].filter(Boolean), keywords: merged.keywords, query: merged.query },
+        sample?.nodes || []
+      );
+      if (companyForPaths) {
+        toast(`Showing optimal paths to people at ${companyForPaths}…`);
+        updateMultipleOptimalPaths(companyForPaths);
+        setLLMStatus(`PATHS → ${companyForPaths}`);
+        zoomToMultiplePaths();
+      } else {
+        const kw = merged.keywords?.length ? merged.keywords : [merged.target_name, merged.target_company].filter(Boolean);
+        toast(`Couldn't find "${merged.target_name || merged.target_company || 'target'}" in your graph. Running LinkedIn search instead.`);
+        linkedinSearchDummy({ keywords: kw, query: merged.query });
+        setLLMStatus('SEARCH (fallback) started');
+      }
     }
 
   } else if (routing.action === 'search') {
-    const keywords = Array.isArray(details.keywords) ? details.keywords : [];
-    const compiled = details.linkedin_query || (routing.query || query);
-    linkedinSearchDummy({ keywords: keywords.length ? keywords : [routing.query || query], query: compiled });
-    setLLMStatus('SEARCH started');
+    // Prefer showing multiple in-graph paths if the LLM hinted a company we already have
+    const companyForPaths = resolveBestCompanyFromSearchDetails(details, sample?.nodes || []);
+    if (companyForPaths) {
+      toast(`Showing optimal paths to people at ${companyForPaths}…`);
+      updateMultipleOptimalPaths(companyForPaths);
+      setLLMStatus(`PATHS → ${companyForPaths}`);
+      zoomToMultiplePaths();
+    } else {
+      const keywords = Array.isArray(details.keywords) ? details.keywords : [];
+      const compiled = details.linkedin_query || (routing.query || query);
+      linkedinSearchDummy({ keywords: keywords.length ? keywords : [routing.query || query], query: compiled });
+      setLLMStatus('SEARCH started');
+    }
 
   } else {
     linkedinSearchDummy({ keywords: [], query });
     setLLMStatus('SEARCH (default) started');
   }
 }
-
 
 // Wire the NL button
 if (llm_button && llm_search) {
