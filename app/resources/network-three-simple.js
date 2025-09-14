@@ -1122,6 +1122,34 @@ function updateMultipleOptimalPaths(companyName, companyNodes) {
   });
   hiddenNodes.clear();
   
+  // Reset all edges to original colors before applying multiple path highlighting
+  edgeLines.forEach((line, edgeKey) => {
+    line.visible = true;
+    const [sourceId, targetId] = edgeKey.split('-');
+    
+    // Determine original edge color based on connection type
+    let color, opacity;
+    if (sourceId === 'me' || targetId === 'me') {
+      // 1st-degree connection - medium blue
+      color = 0x6b9bd2;
+      opacity = 0.8;
+    } else {
+      // Regular connection - light gray
+      color = 0x9aa7c6;
+      opacity = 0.6;
+    }
+    
+    line.material.color.setHex(color);
+    line.material.opacity = opacity;
+  });
+  
+  // Clear any existing optimal path cylinders
+  edgeGroup.children.forEach(child => {
+    if (child.userData && child.userData.isOptimalEdge) {
+      edgeGroup.remove(child);
+    }
+  });
+  
   // Find all optimal paths to the company
   const multiplePaths = findAllOptimalPathsToCompany(companyName);
   
