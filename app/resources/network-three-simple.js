@@ -304,7 +304,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color("#0b1020");
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
-camera.position.set(200, 200, 200);
+camera.position.set(250, 250, 250);
 
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -342,6 +342,7 @@ let is3DMode = true; // Track current view mode
 let frozenZPositions = new Map(); // Store Z positions when in 2D mode
 let hoveredNode = null;
 let hoveredNodeOriginalScale = null;
+let networkRotationSpeed = 0.001; // Slow clockwise rotation speed
 
 // Clear any existing nodes to prevent duplicates
 nodeGroup.clear();
@@ -379,8 +380,10 @@ sample.nodes.forEach((n, idx) => {
       new THREE.MeshBasicMaterial({ 
         color: nodeColor,
         transparent: true,
-        opacity: n.id === 'me' ? 0.2 : 0.1, // Brighter glow for user node
-        side: THREE.BackSide
+        opacity: n.id === 'me' ? 0.08 : 0.05, // Much more ethereal glow
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending, // Additive blending for ethereal glow
+        fog: false // Disable fog for cleaner glow
       })
     );
     glowNode.add(outerGlow);
@@ -392,7 +395,9 @@ sample.nodes.forEach((n, idx) => {
       new THREE.MeshBasicMaterial({ 
         color: nodeColor,
         transparent: true,
-        opacity: n.id === 'me' ? 0.4 : 0.3 // Brighter glow for user node
+        opacity: n.id === 'me' ? 0.15 : 0.1, // Much more ethereal glow
+        blending: THREE.AdditiveBlending, // Additive blending for ethereal glow
+        fog: false // Disable fog for cleaner glow
       })
     );
     glowNode.add(innerGlow);
@@ -439,15 +444,26 @@ sample.nodes.forEach((n, idx) => {
         opacity: 1.0,
         side: THREE.DoubleSide,
         depthWrite: true,  // Write to depth buffer
-        depthTest: true    // Test depth
+        depthTest: true,   // Test depth
+        alphaTest: 0.5,    // Higher threshold for more solid appearance
+        emissive: 0x000000, // No emissive glow
+        emissiveIntensity: 0, // No emissive intensity
+        roughness: 0.0,    // Make it more solid/smooth
+        metalness: 0.0,    // Non-metallic for solid appearance
+        flatShading: false, // Smooth shading for solid look
+        vertexColors: false // Use material color instead of vertex colors
       });
 
       core = new THREE.Mesh(nodeGeometry, nodeMaterial);
-      core.renderOrder = 1; // Profile picture renders on top of glow effects
+      core.renderOrder = 100; // Profile picture renders on top of everything
+      core.material.depthWrite = true;
+      core.material.depthTest = true;
+      core.material.transparent = false; // Ensure solid occlusion
+      core.material.opacity = 1.0; // Ensure full opacity
       
       // Add multiple glow layers around profile picture for better color effect
       const glowSizes = n.id === 'me' ? [40, 35, 30] : [32, 28, 24];
-      const glowOpacities = n.id === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
+      const glowOpacities = n.id === 'me' ? [0.15, 0.2, 0.25] : [0.1, 0.15, 0.2];
       
       glowSizes.forEach((glowSize, index) => {
         // Create a ring geometry around the circular node
@@ -460,12 +476,14 @@ sample.nodes.forEach((n, idx) => {
           opacity: glowOpacities[index],
           side: THREE.DoubleSide,
           depthWrite: false, // Don't write to depth buffer
-          depthTest: false   // Don't test depth
+          depthTest: false,  // Don't test depth
+          blending: THREE.AdditiveBlending, // Additive blending for ethereal glow
+          fog: false // Disable fog for cleaner glow
         });
         
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
         glow.position.z = -0.1 - (index * 0.05); // Slightly behind the profile picture
-        glow.renderOrder = 0; // Glow renders behind profile picture but above edges
+        glow.renderOrder = 1; // Glow renders behind profile picture but above edges
         glow.userData.isGlow = true;
         glow.userData.isBillboard = true; // Make glow also billboard
         glow.userData.glowIndex = index;
@@ -508,7 +526,7 @@ sample.nodes.forEach((n, idx) => {
     // Use spherical coordinates for 3D distribution
     const phi = Math.acos(2 * Math.random() - 1); // Random polar angle (0 to π)
     const theta = 2 * Math.PI * Math.random(); // Random azimuthal angle (0 to 2π)
-    const radius = 80 + Math.random() * 80; // Random radius between 80 and 160
+    const radius = 120 + Math.random() * 120; // Random radius between 120 and 240
     
     // Convert spherical to Cartesian coordinates
     glowNode.position.set(
@@ -517,7 +535,7 @@ sample.nodes.forEach((n, idx) => {
       radius * Math.cos(phi)
     );
   }
-  glowNode.renderOrder = -1; // Render nodes first (behind edges)
+  glowNode.renderOrder = 10; // Render nodes well above edges
   nodeGroup.add(glowNode);
   nodeObjs.set(n.id, glowNode);
 
@@ -599,9 +617,14 @@ sample.edges.forEach(e => {
     transparent: true, 
     opacity: opacity,
     depthTest: true,
-    depthWrite: true
+    depthWrite: true,
+    alphaTest: 0.1
   }));
-  line.renderOrder = 1; // Render edges on top of nodes
+  line.renderOrder = -10; // Render edges well behind nodes
+  line.material.depthWrite = true;
+  line.material.depthTest = true;
+  line.material.transparent = true; // Keep edges transparent
+  line.material.opacity = 0.6; // Ensure proper opacity
   edgeGroup.add(line);
   edgeLines.set(`${e.source}-${e.target}`, line);
 });
@@ -873,7 +896,7 @@ function updateOptimalPath(targetId) {
         cylinder.position.copy(midpoint);
         cylinder.lookAt(t.position);
         cylinder.rotateX(Math.PI / 2);
-        cylinder.renderOrder = 1; // Render cylinders on top of nodes
+        cylinder.renderOrder = -5; // Render cylinders behind nodes but above regular edges
         
         // Store reference to remove later
         cylinder.userData = { isOptimalEdge: true, edgeKey: `${e.source}-${e.target}` };
@@ -1139,6 +1162,7 @@ function switchTo3D() {
   is3DMode = true;
   updateToggleButtons();
   updateControlsForMode();
+  ensureRenderOrder();
   animateToLayout('3d');
 }
 
@@ -1148,6 +1172,7 @@ function switchTo2D() {
   is3DMode = false;
   updateToggleButtons();
   updateControlsForMode();
+  ensureRenderOrder();
   animateToLayout('2d');
 }
 
@@ -1174,6 +1199,40 @@ function updateControlsForMode() {
     controls.minPolarAngle = Math.PI/2 - 0.1; // Lock to top-down view
     controls.maxPolarAngle = Math.PI/2 + 0.1;
   }
+}
+
+// Ensure proper render order for both 2D and 3D modes
+function ensureRenderOrder() {
+  // Ensure all profile pictures are on top
+  nodeObjs.forEach((node, nodeId) => {
+    node.children.forEach(child => {
+      if (child.userData.isBillboard && child.material) {
+        child.renderOrder = 100; // Very high render order
+        child.material.depthWrite = true;
+        child.material.depthTest = true;
+      }
+    });
+  });
+  
+  // Ensure all edges are behind nodes
+  edgeGroup.children.forEach(edge => {
+    edge.renderOrder = -10;
+    if (edge.material) {
+      edge.material.depthWrite = true;
+      edge.material.depthTest = true;
+    }
+  });
+  
+  // Ensure optimal path cylinders are behind nodes but above edges
+  edgeGroup.children.forEach(cylinder => {
+    if (cylinder.userData && cylinder.userData.isOptimalEdge) {
+      cylinder.renderOrder = -5;
+      if (cylinder.material) {
+        cylinder.material.depthWrite = true;
+        cylinder.material.depthTest = true;
+      }
+    }
+  });
 }
 
 // Animate nodes to new layout
@@ -1215,8 +1274,8 @@ function animateToLayout(mode) {
   
   // Animate camera position
   const targetCameraPos = mode === '2d' ? 
-    new THREE.Vector3(0, 0, 300) : 
-    new THREE.Vector3(200, 200, 200);
+    new THREE.Vector3(0, 0, 350) : 
+    new THREE.Vector3(250, 250, 250);
   
   const startCameraPos = camera.position.clone();
   const startTarget = controls.target.clone();
@@ -1343,6 +1402,16 @@ function animate(){
     if (!is3DMode) {
       node.position.z = 0;
     }
+    
+    // Ensure profile pictures always render on top in both 2D and 3D modes
+    node.children.forEach(child => {
+      if (child.userData.isBillboard && child.material) {
+        // Force profile pictures to always be on top
+        child.renderOrder = 100; // Very high render order
+        child.material.depthWrite = true;
+        child.material.depthTest = true;
+      }
+    });
 
     const s = 1 + Math.sin(t*a.scaleFrequency + a.timeOffset)*a.scaleAmplitude;
     node.scale.setScalar(s);
@@ -1363,21 +1432,33 @@ function animate(){
     // Billboard rotation for profile picture planes and glow effects
     node.children.forEach(child => {
       if (child.userData.isBillboard) {
-        // Make both profile pictures and glow effects always face the camera
-        // but keep them right-side up by using a proper billboard rotation
+        // Make both profile pictures and glow effects always face the camera directly
         const worldPosition = new THREE.Vector3();
         child.getWorldPosition(worldPosition);
         
         // Calculate direction from child to camera
         const direction = new THREE.Vector3().subVectors(camera.position, worldPosition);
-        direction.y = 0; // Keep Y component at 0 to prevent flipping upside down
         direction.normalize();
         
-        // Calculate rotation to face camera while staying upright
-        const angle = Math.atan2(direction.x, direction.z);
-        child.rotation.y = angle;
-        child.rotation.x = 0; // Keep X rotation at 0 to prevent flipping
-        child.rotation.z = 0; // Keep Z rotation at 0 to prevent flipping
+        // Create a look-at matrix to face the camera directly
+        const lookAtMatrix = new THREE.Matrix4();
+        lookAtMatrix.lookAt(worldPosition, camera.position, camera.up);
+        
+        // Extract rotation from the look-at matrix
+        const quaternion = new THREE.Quaternion();
+        quaternion.setFromRotationMatrix(lookAtMatrix);
+        
+        // Apply the rotation to make it face the camera directly
+        child.quaternion.copy(quaternion);
+        
+        // Ensure profile pictures always render on top and occlude edges
+        child.renderOrder = 100; // Very high render order
+        if (child.material) {
+          child.material.depthWrite = true;
+          child.material.depthTest = true;
+          child.material.transparent = false; // Ensure solid occlusion
+          child.material.opacity = 1.0; // Ensure full opacity
+        }
       }
     });
   });
@@ -1406,6 +1487,29 @@ function animate(){
         }
       }
     });
+  }
+  
+  // Slow clockwise rotation of the entire network around the "You" node
+  if (is3DMode) {
+    // Rotate all nodes around the Y-axis (vertical axis) with "You" node as center
+    const youNode = nodeObjs.get('me');
+    if (youNode) {
+      const youPosition = youNode.position.clone();
+      
+      nodeObjs.forEach((node, nodeId) => {
+        if (nodeId !== 'me') { // Don't rotate the "You" node itself
+          // Get relative position from "You" node
+          const relativePos = node.position.clone().sub(youPosition);
+          
+          // Apply rotation around Y-axis
+          const rotationMatrix = new THREE.Matrix4().makeRotationY(networkRotationSpeed);
+          relativePos.applyMatrix4(rotationMatrix);
+          
+          // Set new position relative to "You" node
+          node.position.copy(youPosition.clone().add(relativePos));
+        }
+      });
+    }
   }
 
   // Add pulsing scale animation for all highlighted nodes in optimal path
