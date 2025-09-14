@@ -471,7 +471,6 @@ sample.nodes.forEach((n, idx) => {
   glow.position.z = -0.1; // Slightly behind the profile picture
   glow.renderOrder = 1; // Behind profile picture but above edges
   glow.userData.isGlow = true;
-  glow.userData.isBillboard = true; // Make glow always face the camera
   individualNode.add(glow);
   
   // Layout nodes in 3D space with 'me' at center
@@ -1925,20 +1924,13 @@ function animate(){
         // Apply the rotation to make it face the camera directly
         child.quaternion.copy(quaternion);
         
-        // Set appropriate render order based on object type
-        if (child.userData.isGlow) {
-          child.renderOrder = 1; // Behind profile pictures but above edges
-        } else {
-          child.renderOrder = 100; // Very high render order for profile pictures
-        }
-        
+        // Ensure profile pictures always render on top and occlude edges
+        child.renderOrder = 100; // Very high render order
         if (child.material) {
           child.material.depthWrite = true;
           child.material.depthTest = true;
-          if (!child.userData.isGlow) {
-            child.material.transparent = false; // Ensure solid occlusion for profile pictures
-            child.material.opacity = 1.0; // Ensure full opacity for profile pictures
-          }
+          child.material.transparent = false; // Ensure solid occlusion
+          child.material.opacity = 1.0; // Ensure full opacity
         }
       }
     });
