@@ -835,14 +835,15 @@ function highlightNode(nodeId, highlightType = 'none') {
     node.children.forEach(child => {
       if (child.material) {
         if (child.userData.isBillboard) {
-          // Apply orange tint to profile picture
-          child.material.color.setHex(0xFF7043);
-          child.material.opacity = 0.8; // Slightly transparent to show the orange tint
+          // Keep profile picture original color (no tint)
+          child.material.color.setHex(0xffffff); // White for no tint
+          child.material.opacity = 1.0; // Full opacity
         } else if (child.userData.isGlow) {
           // Change glow to orange
           child.material.color.setHex(0xFF7043);
           child.material.opacity = 0.8;
         } else {
+          // Only apply orange to non-profile-picture elements
           child.material.color.setHex(0xFF7043); // Vivid orange
         }
         // Mark as highlighted to prevent animation loop from overriding
@@ -865,9 +866,9 @@ function highlightNode(nodeId, highlightType = 'none') {
     node.children.forEach(child => {
       if (child.material) {
         if (child.userData.isBillboard) {
-          // Apply yellow tint to profile picture
-          child.material.color.setHex(0xffd700);
-          child.material.opacity = 0.8; // Slightly transparent to show the yellow tint
+          // Keep profile picture original color (no tint)
+          child.material.color.setHex(0xffffff); // White for no tint
+          child.material.opacity = 1.0; // Full opacity
         } else if (child.userData.isGlow) {
           // Change glow to yellow
           child.material.color.setHex(0xffd700);
