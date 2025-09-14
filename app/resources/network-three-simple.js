@@ -1501,7 +1501,7 @@ function animate(){
       }
       
       nodeObjs.forEach((node, nodeId) => {
-        if (nodeId !== 'me') { // Don't rotate the "You" node itself
+        if (nodeId !== 'me' && nodeId !== hoveredNode?.id) { // Don't rotate the "You" node or hovered node
           // Get relative position from "You" node
           const relativePos = node.position.clone().sub(youPosition);
           
