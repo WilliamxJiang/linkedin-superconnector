@@ -1122,18 +1122,14 @@ function updateMultiplePathsSidebarInfo() {
 // Hover effect functions
 function applyHoverEffect(node) {
   if (!node.userData) return;
-
-  // Store original scales of visual elements
-  hoveredNodeOriginalScale = {};
-
-  node.children.forEach(child => {
-    if (child.userData.isGlow || child.userData.isCore) {
-      hoveredNodeOriginalScale[child.uuid] = child.scale.clone();
-      child.scale.multiplyScalar(1.3);
-    }
-  });
-
-  // Show the label ON HOVER
+  
+  // Store original scale
+  hoveredNodeOriginalScale = node.scale.clone();
+  
+  // Enlarge the node
+  node.scale.multiplyScalar(1.3);
+  
+  // Show the label
   if (node.userData.label) {
     node.userData.label.style.display = 'block';
     node.userData.label.style.visibility = 'visible';
@@ -1143,20 +1139,14 @@ function applyHoverEffect(node) {
 }
 function resetHoverEffect(node) {
   if (!node.userData) return;
-
-  // Reset scales of visual elements
-  if (hoveredNodeOriginalScale && typeof hoveredNodeOriginalScale === 'object') {
-    node.children.forEach(child => {
-      if (child.userData.isGlow || child.userData.isCore) {
-        if (hoveredNodeOriginalScale[child.uuid]) {
-          child.scale.copy(hoveredNodeOriginalScale[child.uuid]);
-        }
-      }
-    });
+  
+  // Reset scale
+  if (hoveredNodeOriginalScale) {
+    node.scale.copy(hoveredNodeOriginalScale);
   }
-
-  // Hide the label when hover ends (for ALL nodes, including 'me' and targets)
-  if (node.userData.label) {
+  
+  // Hide the label (but never hide the "You" node label or current target node)
+  if (node.userData.label && node.userData.nodeId !== 'me' && node.userData.nodeId !== currentTarget) {
     node.userData.label.style.display = 'none';
     node.userData.label.style.visibility = 'hidden';
     node.userData.label.style.opacity = '0';
@@ -1639,7 +1629,7 @@ function animate(){
       }
       
       nodeObjs.forEach((node, nodeId) => {
-        if (nodeId !== 'me' && nodeId !== hoveredNode?.id) { // Don't rotate the "You" node or hovered node
+        if (nodeId !== 'me') { // Don't rotate the "You" node itself
           // Get relative position from "You" node
           const relativePos = node.position.clone().sub(youPosition);
           
