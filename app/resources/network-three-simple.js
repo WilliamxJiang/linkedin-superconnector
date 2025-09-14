@@ -204,7 +204,7 @@ if (sample_data) {
         
         // Create edge for ALL scraped profiles (they're already filtered)
         if (targetNode && targetNode.id) {
-          edges.push({
+      edges.push({
             source: 'me', // connect to "You" node
             target: targetNode.id,
             weight: Math.random() * 0.5 + 0.3, // random weight between 0.3-0.8
@@ -254,16 +254,16 @@ if (sample_data) {
   } catch (error) {
     console.error('Error parsing scraped data:', error);
     // Fallback to sample data if parsing fails
-    graph = {
-      nodes: [
+  graph = {
+    nodes: [
         {id:'me', name:'You', degree:1, company:'Ada', school:'UofT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
         {id:'a',  name:'Alex Chen', degree:1, company:'Stripe', school:'UofT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
         {id:'b',  name:'Bianca Patel', degree:1, company:'Meta', school:'Waterloo', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
         {id:'d',  name:'Priya N.', degree:2, company:'Google', role:'Manager', school:'MIT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
         {id:'e',  name:'Sarah Kim', degree:1, company:'Apple', school:'Stanford', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
         {id:'f',  name:'Mike Johnson', degree:1, company:'Microsoft', school:'MIT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'}
-      ],
-      edges: [
+    ],
+    edges: [
         {source:'me', target:'a', weight:0.8, reasons:['Direct connection']},
         {source:'a',  target:'d', weight:0.6, reasons:['Same school']},
         {source:'me', target:'b', weight:0.4, reasons:['Same region']},
@@ -276,23 +276,23 @@ if (sample_data) {
 } else {
   // Fallback to sample data if no scraped data
   graph = {
-    nodes: [
-      {id:'me', name:'You', degree:1, company:'Ada', school:'UofT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
-      {id:'a',  name:'Alex Chen', degree:1, company:'Stripe', school:'UofT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
-      {id:'b',  name:'Bianca Patel', degree:1, company:'Meta', school:'Waterloo', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
-      {id:'d',  name:'Priya N.', degree:2, company:'Google', role:'Manager', school:'MIT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
-      {id:'e',  name:'Sarah Kim', degree:1, company:'Apple', school:'Stanford', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
-      {id:'f',  name:'Mike Johnson', degree:1, company:'Microsoft', school:'MIT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'}
-    ],
-    edges: [
-      {source:'me', target:'a', weight:0.8, reasons:['Direct connection']},
-      {source:'a',  target:'d', weight:0.6, reasons:['Same school']},
-      {source:'me', target:'b', weight:0.4, reasons:['Same region']},
-      {source:'d', target:'e', weight:0.7, reasons:['Tech industry']},
-      {source:'e', target:'f', weight:0.5, reasons:['Tech industry']},
-      {source:'b', target:'f', weight:0.3, reasons:['Tech industry']}
-    ]
-  };
+  nodes: [
+    {id:'me', name:'You', degree:1, company:'Ada', school:'UofT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
+    {id:'a',  name:'Alex Chen', degree:1, company:'Stripe', school:'UofT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
+    {id:'b',  name:'Bianca Patel', degree:1, company:'Meta', school:'Waterloo', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
+    {id:'d',  name:'Priya N.', degree:2, company:'Google', role:'Manager', school:'MIT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
+    {id:'e',  name:'Sarah Kim', degree:1, company:'Apple', school:'Stanford', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'},
+    {id:'f',  name:'Mike Johnson', degree:1, company:'Microsoft', school:'MIT', profilePic: 'https://media.licdn.com/dms/image/v2/D5603AQGqDoohcUjKyA/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1714183463744?e=1760572800&v=beta&t=LRkqPiohCLRDP9tCtgxYqvzYe_TqWdfiWkvcuJonfNM'}
+  ],
+  edges: [
+    {source:'me', target:'a', weight:0.8, reasons:['Direct connection']},
+    {source:'a',  target:'d', weight:0.6, reasons:['Same school']},
+    {source:'me', target:'b', weight:0.4, reasons:['Same region']},
+    {source:'d', target:'e', weight:0.7, reasons:['Tech industry']},
+    {source:'e', target:'f', weight:0.5, reasons:['Tech industry']},
+    {source:'b', target:'f', weight:0.3, reasons:['Tech industry']}
+  ]
+};
 }
 
 // use `graph` downstream
@@ -360,51 +360,8 @@ sample.nodes.forEach((n, idx) => {
     return;
   }
   
-  // Create glowing node group
-  const glowNode = new THREE.Group();
-  
-  // Determine node color based on semantic color scheme
-  let nodeColor;
-  if (n.id === 'me') {
-    nodeColor = 0x4CAF50; // Bright green for user node
-  } else {
-    nodeColor = 0x4DA6FF; // Medium blue for 1st-degree connections
-  }
-  
-  // Declare glow variables outside the if block
-  let outerGlow = null;
-  let innerGlow = null;
-  
-  // Outer glow sphere (only if no profile picture)
-  if (!n.profilePic) {
-    const glowSize = n.id === 'me' ? 24 : 18;
-    outerGlow = new THREE.Mesh(
-      new THREE.SphereGeometry(glowSize, 16, 12),
-      new THREE.MeshBasicMaterial({ 
-        color: nodeColor,
-        transparent: true,
-        opacity: n.id === 'me' ? 0.3 : 0.2, // More visible glow
-        side: THREE.BackSide,
-        blending: THREE.NormalBlending, // Normal blending for true color visibility
-        fog: false // Disable fog for cleaner glow
-      })
-    );
-    glowNode.add(outerGlow);
-    
-    // Inner glow sphere (only if no profile picture)
-    const innerGlowSize = n.id === 'me' ? 15 : 12;
-    innerGlow = new THREE.Mesh(
-      new THREE.SphereGeometry(innerGlowSize, 16, 12),
-      new THREE.MeshBasicMaterial({ 
-        color: nodeColor,
-        transparent: true,
-        opacity: n.id === 'me' ? 0.4 : 0.3, // More visible glow
-        blending: THREE.NormalBlending, // Normal blending for true color visibility
-        fog: false // Disable fog for cleaner glow
-      })
-    );
-    glowNode.add(innerGlow);
-  }
+  // Create simple node group
+  const nodeGroup = new THREE.Group();
   
   let core;
 
@@ -462,49 +419,7 @@ sample.nodes.forEach((n, idx) => {
       core.material.depthTest = true;
       core.material.transparent = false; // Ensure solid occlusion
       core.material.opacity = 1.0; // Ensure full opacity
-      core.renderOrder = 10; // Profile picture renders on top of glows
-      
-      // Add multiple glow layers around profile picture for better color effect
-      console.log(`Creating glows for node ${n.id} with profile picture`);
-      const profileRadius = nodeSize/2; // Radius of the profile picture
-      const glowSizes = n.id === 'me' ? [profileRadius + 3, profileRadius + 6, profileRadius + 9] : [profileRadius + 2, profileRadius + 4, profileRadius + 6]; // Glows just outside profile
-      const glowOpacities = n.id === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
-      
-      glowSizes.forEach((glowSize, index) => {
-        // Create a ring geometry that goes around the profile picture
-        const innerRadius = profileRadius + 1; // Start just outside the profile picture
-        const outerRadius = glowSize; // End at the glow size
-        const glowGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 32);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-          color: nodeColor,
-          transparent: false, // Make opaque for testing
-          opacity: 1.0, // Full opacity for testing
-          side: THREE.DoubleSide,
-          depthWrite: true, // Write to depth buffer for proper layering
-          depthTest: true,  // Test depth for proper layering
-          blending: THREE.NormalBlending, // Normal blending for true color visibility
-          fog: false // Disable fog for cleaner glow
-        });
-        
-        // Debug logging for glow color
-        if (n.id !== 'me') {
-          console.log(`Creating glow for node ${n.id}: color=${nodeColor.toString(16)}, opacity=${glowOpacities[index]}`);
-        }
-        
-        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-        glow.position.z = -0.1 - (index * 0.05); // Just behind the profile picture
-        glow.renderOrder = 1; // Glow renders behind profile picture but above edges
-        glow.userData.isGlow = true;
-        glow.userData.isBillboard = true; // Make glow also billboard
-        glow.userData.glowIndex = index;
-        
-        // Force set the color after creation
-        glow.material.color.setHex(nodeColor);
-        console.log(`Set glow color to ${nodeColor.toString(16)} for node ${n.id}`);
-        
-        glowNode.add(glow);
-        console.log(`Added glow ${index} to node ${n.id}, glowNode children count: ${glowNode.children.length}`);
-      });
+      core.renderOrder = 10; // Profile picture renders on top
       
       // Make the circular node always face the camera by updating its rotation in the animation loop
       core.userData.isBillboard = true;
@@ -533,11 +448,11 @@ sample.nodes.forEach((n, idx) => {
     core = new THREE.Mesh(coreGeometry, coreMaterial);
   }
 
-  glowNode.add(core);
+  nodeGroup.add(core);
   
   // Layout nodes in 3D space with 'me' at center
   if (n.id === 'me') {
-    glowNode.position.set(0, 0, 0);
+    nodeGroup.position.set(0, 0, 0);
   } else {
     // Use spherical coordinates for 3D distribution
     const phi = Math.acos(2 * Math.random() - 1); // Random polar angle (0 to π)
@@ -545,23 +460,14 @@ sample.nodes.forEach((n, idx) => {
     const radius = 120 + Math.random() * 120; // Random radius between 120 and 240
     
     // Convert spherical to Cartesian coordinates
-    glowNode.position.set(
+    nodeGroup.position.set(
       radius * Math.sin(phi) * Math.cos(theta),
       radius * Math.sin(phi) * Math.sin(theta),
       radius * Math.cos(phi)
     );
   }
-  glowNode.renderOrder = 10; // Render nodes well above edges
-  nodeGroup.add(glowNode);
-  nodeObjs.set(n.id, glowNode);
-  
-  // Debug: Log glow node info
-  console.log(`Node ${n.id}: glowNode children count: ${glowNode.children.length}, position:`, glowNode.position);
-  glowNode.children.forEach((child, index) => {
-    if (child.userData.isGlow) {
-      console.log(`  Glow ${index}: visible=${child.visible}, position=${child.position}, color=${child.material.color.getHexString()}`);
-    }
-  });
+  nodeGroup.renderOrder = 10; // Render nodes well above edges
+  nodeObjs.set(n.id, nodeGroup);
 
   // Create detailed label with name and company (hidden by default)
   const labelDiv = document.createElement("div");
@@ -576,9 +482,9 @@ sample.nodes.forEach((n, idx) => {
   } else {
     // For other nodes, show name and company/role if they're not "Unknown"
     if (n.role && n.role !== 'Unknown' && n.company && n.company !== 'Unknown') {
-      labelText += `, ${n.role} @ ${n.company}`;
+    labelText += `, ${n.role} @ ${n.company}`;
     } else if (n.company && n.company !== 'Unknown') {
-      labelText += ` @ ${n.company}`;
+    labelText += ` @ ${n.company}`;
     } else if (n.role && n.role !== 'Unknown') {
       labelText += `, ${n.role}`;
     }
@@ -600,10 +506,10 @@ sample.nodes.forEach((n, idx) => {
   
   const label = new CSS2DObject(labelDiv);
   label.position.set(0, -15, 0); // Position below the node
-  glowNode.add(label);
+  nodeGroup.add(label);
   
   // Store reference to label for hover effects
-  glowNode.userData = { 
+  nodeGroup.userData = { 
     nodeId: n.id, 
     label: labelDiv,
     originalScale: 1,
@@ -611,15 +517,12 @@ sample.nodes.forEach((n, idx) => {
   };
 
   nodeAnimations.set(n.id, {
-    originalPos: glowNode.position.clone(),
+    originalPos: nodeGroup.position.clone(),
     timeOffset: Math.random()*Math.PI*2,
     amplitude: 2 + Math.random()*3,
     frequency: 0.5 + Math.random()*0.5,
     scaleAmplitude: 0.1 + Math.random()*0.1,
     scaleFrequency: 0.3 + Math.random()*0.4,
-    glowNode: glowNode,
-    outerGlow: outerGlow, // null if no profile picture
-    innerGlow: innerGlow, // null if no profile picture
     core: core
   });
 });
@@ -911,10 +814,6 @@ function highlightNode(nodeId, highlightType = 'none') {
           // Apply orange tint to profile picture
           child.material.color.setHex(0xFF7043);
           child.material.opacity = 0.8; // Slightly transparent to show the orange tint
-        } else if (child.userData.isGlow) {
-          // For glow effects, make them more prominent with orange
-          child.material.color.setHex(0xFF7043);
-          child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0); // Much brighter, cap at 1.0
         } else {
           child.material.color.setHex(0xFF7043); // Vivid orange
         }
@@ -922,27 +821,6 @@ function highlightNode(nodeId, highlightType = 'none') {
         child.userData.isHighlighted = true;
       }
     });
-    
-    // Handle glow objects specifically
-    if (node.userData && node.userData.glowNode) {
-      node.userData.glowNode.children.forEach(child => {
-        if (child.material && child.userData.isGlow) {
-          child.material.color.setHex(0xFF7043); // Orange glow
-          child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0);
-          child.userData.isHighlighted = true;
-        }
-      });
-    }
-    
-    // Add subtle glow effect for optimal path
-    if (node.userData && node.userData.glowNode) {
-      node.userData.glowNode.children.forEach(child => {
-        if (child.material && child.material.emissive) {
-          child.material.emissive.setHex(0x331100); // Subtle orange glow
-          child.material.emissiveIntensity = 0.3;
-        }
-      });
-    }
     
     // Make the target node's label permanently visible
     if (node.userData && node.userData.label) {
@@ -962,10 +840,6 @@ function highlightNode(nodeId, highlightType = 'none') {
           // Apply yellow tint to profile picture
           child.material.color.setHex(0xffd700);
           child.material.opacity = 0.8; // Slightly transparent to show the yellow tint
-        } else if (child.userData.isGlow) {
-          // For glow effects, make them more prominent with yellow
-          child.material.color.setHex(0xffd700);
-          child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0); // Much brighter, cap at 1.0
         } else {
           child.material.color.setHex(0xffd700); // Gold/yellow
         }
@@ -973,27 +847,6 @@ function highlightNode(nodeId, highlightType = 'none') {
         child.userData.isHighlighted = true;
       }
     });
-    
-    // Handle glow objects specifically
-    if (node.userData && node.userData.glowNode) {
-      node.userData.glowNode.children.forEach(child => {
-        if (child.material && child.userData.isGlow) {
-          child.material.color.setHex(0xffd700); // Yellow glow
-          child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0);
-          child.userData.isHighlighted = true;
-        }
-      });
-    }
-    
-    // Add subtle glow effect for optimal path
-    if (node.userData && node.userData.glowNode) {
-      node.userData.glowNode.children.forEach(child => {
-        if (child.material && child.material.emissive) {
-          child.material.emissive.setHex(0x332200); // Subtle yellow glow
-          child.material.emissiveIntensity = 0.2;
-        }
-      });
-    }
   } else {
     // Clear highlighting
     console.log(`Clearing highlighting for node ${nodeId}, restoring to original color: ${originalColor.toString(16)}`);
@@ -1006,12 +859,6 @@ function highlightNode(nodeId, highlightType = 'none') {
           // Reset profile picture to original color (no tint)
           child.material.color.setHex(0xffffff); // White for no tint
           child.material.opacity = 1.0; // Full opacity
-        } else if (child.userData.isGlow) {
-          // For glow effects, restore original color and opacity
-          child.material.color.setHex(originalColor);
-          // Restore original opacity based on glow layer
-          const originalOpacities = nodeId === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
-          child.material.opacity = originalOpacities[child.userData.glowIndex] || 0.3;
         } else {
           child.material.color.setHex(originalColor);
         }
@@ -1019,29 +866,6 @@ function highlightNode(nodeId, highlightType = 'none') {
         child.userData.isHighlighted = false;
       }
     });
-    
-    // Handle glow objects specifically
-    if (node.userData && node.userData.glowNode) {
-      node.userData.glowNode.children.forEach(child => {
-        if (child.material && child.userData.isGlow) {
-          child.material.color.setHex(originalColor); // Restore original color
-          // Restore original opacity based on glow layer
-          const originalOpacities = nodeId === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
-          child.material.opacity = originalOpacities[child.userData.glowIndex] || 0.3;
-          child.userData.isHighlighted = false;
-        }
-      });
-    }
-    
-    // Reset glow effect
-    if (node.userData && node.userData.glowNode) {
-      node.userData.glowNode.children.forEach(child => {
-        if (child.material && child.material.emissive) {
-          child.material.emissive.setHex(0x000000); // Reset glow
-          child.material.emissiveIntensity = 0;
-        }
-      });
-    }
   }
 }
 
@@ -1577,9 +1401,9 @@ function searchAndHighlight() {
   }
   
   // No matches found
-  const availableNames = sample.nodes.map(n => n.name).join(', ');
-  const availableCompanies = sample.nodes.filter(n => n.company).map(n => n.company).join(', ');
-  alert(`No match found for "${searchTerm}".\n\nTry:\nNames: ${availableNames}\nCompanies: ${availableCompanies}`);
+    const availableNames = sample.nodes.map(n => n.name).join(', ');
+    const availableCompanies = sample.nodes.filter(n => n.company).map(n => n.company).join(', ');
+    alert(`No match found for "${searchTerm}".\n\nTry:\nNames: ${availableNames}\nCompanies: ${availableCompanies}`);
 }
 
 highlightButton.addEventListener('click', searchAndHighlight);
@@ -2105,55 +1929,6 @@ function animate(){
   // Network rotation disabled - all nodes remain stationary
   // (Previous rotation code removed)
   
-  // Add slow pulsing animation to all node glows
-  nodeObjs.forEach((node, nodeId) => {
-    let glowCount = 0;
-    
-    // Handle glows in node.children (if any)
-    node.children.forEach(child => {
-      if (child.userData.isGlow && !child.userData.isHighlighted) {
-        glowCount++;
-        // Slow pulsing animation for all glows (except highlighted ones)
-        const glowPulse = 1 + Math.sin(t * 0.8) * 0.15; // Slow, gentle pulse
-        const opacityPulse = 0.7 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
-        child.scale.setScalar(glowPulse);
-        if (child.material) {
-          // Ensure correct color is maintained
-          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF; // Blue for 1st-degree connections
-          child.material.color.setHex(originalColor);
-          child.material.opacity = Math.min(opacityPulse, 1.0);
-          // Mark this glow as being animated so other code doesn't override it
-          child.userData.isPulsing = true;
-        }
-      }
-    });
-    
-    // Handle glows in glowNode.children (the actual glow objects)
-    if (node.userData && node.userData.glowNode) {
-      node.userData.glowNode.children.forEach(child => {
-        if (child.userData.isGlow && !child.userData.isHighlighted) {
-          glowCount++;
-          // Slow pulsing animation for all glows (except highlighted ones)
-          const glowPulse = 1 + Math.sin(t * 0.8) * 0.15; // Slow, gentle pulse
-          const opacityPulse = 0.7 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
-          child.scale.setScalar(glowPulse);
-          if (child.material) {
-            // Ensure correct color is maintained
-            const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF; // Blue for 1st-degree connections
-            child.material.color.setHex(originalColor);
-            child.material.opacity = Math.min(opacityPulse, 1.0);
-            // Mark this glow as being animated so other code doesn't override it
-            child.userData.isPulsing = true;
-          }
-        }
-      });
-    }
-    
-    // Debug: Log glow count for each node every 200 frames
-    if (Math.floor(t * 60) % 200 === 0 && glowCount > 0) {
-      console.log(`Node ${nodeId}: ${glowCount} glows pulsing`);
-    }
-  });
 
   // Add pulsing scale animation for all highlighted nodes in optimal path
   highlightedNodes.forEach(nodeId => {
@@ -2163,34 +1938,6 @@ function animate(){
         const pulseScale = 1 + Math.sin(t * 2) * 0.2; // Pulsing scale animation
         node.scale.setScalar(pulseScale);
         
-        // Also pulse the glow effects with correct colors
-        node.children.forEach(child => {
-          if (child.userData.isGlow) {
-            // Make target node glow slightly larger for emphasis
-            const isTarget = nodeId === currentTarget;
-            const glowPulse = isTarget ? 
-              1 + Math.sin(t * 2.5) * 0.4 : // Larger pulse for target node
-              1 + Math.sin(t * 2.5) * 0.3;  // Normal pulse for intermediate nodes
-            const opacityPulse = 0.5 + Math.sin(t * 1.8) * 0.3; // Pulse opacity too
-            child.scale.setScalar(glowPulse);
-            child.material.opacity = Math.min(opacityPulse, 1.0);
-            // Mark as highlighted so it doesn't get overridden by general pulsing
-            child.userData.isHighlighted = true;
-            
-            // Apply correct color based on node position in path
-            if (nodeId === currentTarget) {
-              // Target node - bright orange
-              child.material.color.setHex(0xFF7043);
-            } else if (currentOptimalPath.path.includes(nodeId)) {
-              // Intermediate node - yellow
-              child.material.color.setHex(0xffd700);
-            } else {
-              // Default color
-              const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF; // Blue for 1st-degree connections
-              child.material.color.setHex(originalColor);
-            }
-          }
-        });
       }
     }
   });
@@ -2201,22 +1948,12 @@ function animate(){
       // Reset scale to normal
       node.scale.setScalar(1);
       
-      // Reset glow effects and profile pictures to original colors and opacity
+      // Reset profile pictures to original colors and opacity
       node.children.forEach(child => {
         if (child.userData.isBillboard) {
           // Reset profile picture to original color (no tint)
           child.material.color.setHex(0xffffff); // White for no tint
           child.material.opacity = 1.0; // Full opacity
-        } else if (child.userData.isGlow) {
-          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF; // Blue for 1st-degree connections
-          child.material.color.setHex(originalColor);
-          
-          // Reset to original opacity based on glow layer
-          const originalOpacities = nodeId === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
-          child.material.opacity = originalOpacities[child.userData.glowIndex] || 0.3;
-          child.scale.setScalar(1); // Reset glow scale
-          // Clear highlighted flag so it can resume general pulsing
-          child.userData.isHighlighted = false;
         }
       });
     }
