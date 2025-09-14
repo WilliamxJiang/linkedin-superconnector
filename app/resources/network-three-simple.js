@@ -1802,7 +1802,7 @@ async function getOpenAIKey() {
 }
 
 async function chatJSON(messages, { model = OPENAI_MODEL, temperature = 0 } = {}) {
-  const key = await getOpenAIKey();
+  const key = await getOpenAIKey(); 
   if (!key) throw new Error('Missing OpenAI API key. Store it in chrome.storage and load with getOpenAIKey().');
 
   const res = await fetch(OPENAI_ENDPOINT, {
