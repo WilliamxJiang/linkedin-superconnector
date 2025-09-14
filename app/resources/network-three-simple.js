@@ -465,6 +465,7 @@ sample.nodes.forEach((n, idx) => {
       core.material.opacity = 1.0; // Ensure full opacity
       
       // Add multiple glow layers around profile picture for better color effect
+      console.log(`Creating glows for node ${n.id} with profile picture`);
       const glowSizes = n.id === 'me' ? [40, 35, 30] : [32, 28, 24];
       const glowOpacities = n.id === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
       
@@ -496,6 +497,7 @@ sample.nodes.forEach((n, idx) => {
         glow.userData.isBillboard = true; // Make glow also billboard
         glow.userData.glowIndex = index;
         glowNode.add(glow);
+        console.log(`Added glow ${index} to node ${n.id}, glowNode children count: ${glowNode.children.length}`);
       });
       
       // Make the circular node always face the camera by updating its rotation in the animation loop
@@ -546,6 +548,14 @@ sample.nodes.forEach((n, idx) => {
   glowNode.renderOrder = 10; // Render nodes well above edges
   nodeGroup.add(glowNode);
   nodeObjs.set(n.id, glowNode);
+  
+  // Debug: Log glow node info
+  console.log(`Node ${n.id}: glowNode children count: ${glowNode.children.length}, position:`, glowNode.position);
+  glowNode.children.forEach((child, index) => {
+    if (child.userData.isGlow) {
+      console.log(`  Glow ${index}: visible=${child.visible}, position=${child.position}, color=${child.material.color.getHexString()}`);
+    }
+  });
 
   // Create detailed label with name and company (hidden by default)
   const labelDiv = document.createElement("div");
