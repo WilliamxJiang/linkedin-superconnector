@@ -361,7 +361,7 @@ sample.nodes.forEach((n, idx) => {
   }
   
   // Create simple node group
-  const nodeGroup = new THREE.Group();
+  const individualNode = new THREE.Group();
   
   let core;
 
@@ -448,11 +448,11 @@ sample.nodes.forEach((n, idx) => {
     core = new THREE.Mesh(coreGeometry, coreMaterial);
   }
 
-  nodeGroup.add(core);
+  individualNode.add(core);
   
   // Layout nodes in 3D space with 'me' at center
   if (n.id === 'me') {
-    nodeGroup.position.set(0, 0, 0);
+    individualNode.position.set(0, 0, 0);
   } else {
     // Use spherical coordinates for 3D distribution
     const phi = Math.acos(2 * Math.random() - 1); // Random polar angle (0 to π)
@@ -460,14 +460,15 @@ sample.nodes.forEach((n, idx) => {
     const radius = 120 + Math.random() * 120; // Random radius between 120 and 240
     
     // Convert spherical to Cartesian coordinates
-    nodeGroup.position.set(
+    individualNode.position.set(
       radius * Math.sin(phi) * Math.cos(theta),
       radius * Math.sin(phi) * Math.sin(theta),
       radius * Math.cos(phi)
     );
   }
-  nodeGroup.renderOrder = 10; // Render nodes well above edges
-  nodeObjs.set(n.id, nodeGroup);
+  individualNode.renderOrder = 10; // Render nodes well above edges
+  nodeGroup.add(individualNode);
+  nodeObjs.set(n.id, individualNode);
 
   // Create detailed label with name and company (hidden by default)
   const labelDiv = document.createElement("div");
@@ -506,10 +507,10 @@ sample.nodes.forEach((n, idx) => {
   
   const label = new CSS2DObject(labelDiv);
   label.position.set(0, -15, 0); // Position below the node
-  nodeGroup.add(label);
+  individualNode.add(label);
   
   // Store reference to label for hover effects
-  nodeGroup.userData = { 
+  individualNode.userData = { 
     nodeId: n.id, 
     label: labelDiv,
     originalScale: 1,
@@ -517,7 +518,7 @@ sample.nodes.forEach((n, idx) => {
   };
 
   nodeAnimations.set(n.id, {
-    originalPos: nodeGroup.position.clone(),
+    originalPos: individualNode.position.clone(),
     timeOffset: Math.random()*Math.PI*2,
     amplitude: 2 + Math.random()*3,
     frequency: 0.5 + Math.random()*0.5,
