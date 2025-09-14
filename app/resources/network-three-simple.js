@@ -903,6 +903,8 @@ function highlightNode(nodeId, highlightType = 'none') {
     // Target node - vivid orange
     console.log(`Highlighting target node ${nodeId} with orange color`);
     highlightedNodes.add(nodeId);
+    
+    // Handle profile picture and other node children
     node.children.forEach(child => {
       if (child.material) {
         if (child.userData.isBillboard) {
@@ -920,6 +922,17 @@ function highlightNode(nodeId, highlightType = 'none') {
         child.userData.isHighlighted = true;
       }
     });
+    
+    // Handle glow objects specifically
+    if (node.userData && node.userData.glowNode) {
+      node.userData.glowNode.children.forEach(child => {
+        if (child.material && child.userData.isGlow) {
+          child.material.color.setHex(0xFF7043); // Orange glow
+          child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0);
+          child.userData.isHighlighted = true;
+        }
+      });
+    }
     
     // Add subtle glow effect for optimal path
     if (node.userData && node.userData.glowNode) {
@@ -941,6 +954,8 @@ function highlightNode(nodeId, highlightType = 'none') {
     // Intermediate node - yellow
     console.log(`Highlighting intermediate node ${nodeId} with yellow color`);
     highlightedNodes.add(nodeId);
+    
+    // Handle profile picture and other node children
     node.children.forEach(child => {
       if (child.material) {
         if (child.userData.isBillboard) {
@@ -959,6 +974,17 @@ function highlightNode(nodeId, highlightType = 'none') {
       }
     });
     
+    // Handle glow objects specifically
+    if (node.userData && node.userData.glowNode) {
+      node.userData.glowNode.children.forEach(child => {
+        if (child.material && child.userData.isGlow) {
+          child.material.color.setHex(0xffd700); // Yellow glow
+          child.material.opacity = Math.min(child.material.opacity * 2.5, 1.0);
+          child.userData.isHighlighted = true;
+        }
+      });
+    }
+    
     // Add subtle glow effect for optimal path
     if (node.userData && node.userData.glowNode) {
       node.userData.glowNode.children.forEach(child => {
@@ -972,6 +998,8 @@ function highlightNode(nodeId, highlightType = 'none') {
     // Clear highlighting
     console.log(`Clearing highlighting for node ${nodeId}, restoring to original color: ${originalColor.toString(16)}`);
     highlightedNodes.delete(nodeId);
+    
+    // Handle profile picture and other node children
     node.children.forEach(child => {
       if (child.material) {
         if (child.userData.isBillboard) {
@@ -991,6 +1019,19 @@ function highlightNode(nodeId, highlightType = 'none') {
         child.userData.isHighlighted = false;
       }
     });
+    
+    // Handle glow objects specifically
+    if (node.userData && node.userData.glowNode) {
+      node.userData.glowNode.children.forEach(child => {
+        if (child.material && child.userData.isGlow) {
+          child.material.color.setHex(originalColor); // Restore original color
+          // Restore original opacity based on glow layer
+          const originalOpacities = nodeId === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
+          child.material.opacity = originalOpacities[child.userData.glowIndex] || 0.3;
+          child.userData.isHighlighted = false;
+        }
+      });
+    }
     
     // Reset glow effect
     if (node.userData && node.userData.glowNode) {
@@ -2067,6 +2108,8 @@ function animate(){
   // Add slow pulsing animation to all node glows
   nodeObjs.forEach((node, nodeId) => {
     let glowCount = 0;
+    
+    // Handle glows in node.children (if any)
     node.children.forEach(child => {
       if (child.userData.isGlow && !child.userData.isHighlighted) {
         glowCount++;
@@ -2084,6 +2127,27 @@ function animate(){
         }
       }
     });
+    
+    // Handle glows in glowNode.children (the actual glow objects)
+    if (node.userData && node.userData.glowNode) {
+      node.userData.glowNode.children.forEach(child => {
+        if (child.userData.isGlow && !child.userData.isHighlighted) {
+          glowCount++;
+          // Slow pulsing animation for all glows (except highlighted ones)
+          const glowPulse = 1 + Math.sin(t * 0.8) * 0.15; // Slow, gentle pulse
+          const opacityPulse = 0.7 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
+          child.scale.setScalar(glowPulse);
+          if (child.material) {
+            // Ensure correct color is maintained
+            const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF; // Blue for 1st-degree connections
+            child.material.color.setHex(originalColor);
+            child.material.opacity = Math.min(opacityPulse, 1.0);
+            // Mark this glow as being animated so other code doesn't override it
+            child.userData.isPulsing = true;
+          }
+        }
+      });
+    }
     
     // Debug: Log glow count for each node every 200 frames
     if (Math.floor(t * 60) % 200 === 0 && glowCount > 0) {
