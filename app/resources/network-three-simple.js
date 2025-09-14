@@ -1504,17 +1504,26 @@ function animate(){
   
   // Add slow pulsing animation to all node glows
   nodeObjs.forEach((node, nodeId) => {
+    let glowCount = 0;
     node.children.forEach(child => {
-      if (child.userData.isGlow) {
-        // Slow pulsing animation for all glows
+      if (child.userData.isGlow && !child.userData.isHighlighted) {
+        glowCount++;
+        // Slow pulsing animation for all glows (except highlighted ones)
         const glowPulse = 1 + Math.sin(t * 0.8) * 0.15; // Slow, gentle pulse
         const opacityPulse = 0.7 + Math.sin(t * 1.2) * 0.2; // Gentle opacity pulse
         child.scale.setScalar(glowPulse);
         if (child.material) {
           child.material.opacity = Math.min(opacityPulse, 1.0);
+          // Mark this glow as being animated so other code doesn't override it
+          child.userData.isPulsing = true;
         }
       }
     });
+    
+    // Debug: Log glow count for each node every 200 frames
+    if (Math.floor(t * 60) % 200 === 0 && glowCount > 0) {
+      console.log(`Node ${nodeId}: ${glowCount} glows pulsing`);
+    }
   });
 
   // Add pulsing scale animation for all highlighted nodes in optimal path
@@ -1536,6 +1545,8 @@ function animate(){
             const opacityPulse = 0.5 + Math.sin(t * 1.8) * 0.3; // Pulse opacity too
             child.scale.setScalar(glowPulse);
             child.material.opacity = Math.min(opacityPulse, 1.0);
+            // Mark as highlighted so it doesn't get overridden by general pulsing
+            child.userData.isHighlighted = true;
             
             // Apply correct color based on node position in path
             if (nodeId === currentTarget) {
@@ -1571,6 +1582,8 @@ function animate(){
           const originalOpacities = nodeId === 'me' ? [0.4, 0.5, 0.6] : [0.3, 0.4, 0.5];
           child.material.opacity = originalOpacities[child.userData.glowIndex] || 0.3;
           child.scale.setScalar(1); // Reset glow scale
+          // Clear highlighted flag so it can resume general pulsing
+          child.userData.isHighlighted = false;
         }
       });
     }
