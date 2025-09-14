@@ -8,6 +8,7 @@ import * as THREE from './three-bundle.js';
 import { OrbitControls } from './orbit-controls-bundle.js';
 import { CSS2DRenderer, CSS2DObject } from './css2d-renderer-bundle.js';
 
+
 // Scraper data integration with profile picture support
 const sample_data = await chrome.storage.local.get('lsc-latest-profiles').then(res => res['lsc-latest-profiles']);
 let graph;
