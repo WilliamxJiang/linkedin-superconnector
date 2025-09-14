@@ -1179,16 +1179,40 @@ function updateMultipleOptimalPaths(companyName, companyNodes) {
     });
   });
   
-  // For multiple paths, make ALL edges yellow
-  console.log('Multiple paths: Making all edges yellow');
+  // For multiple paths, make only target node edges yellow
+  console.log('Multiple paths: Making target node edges yellow');
   sample.edges.forEach(e => {
     const line = edgeLines.get(`${e.source}-${e.target}`);
     if (!line) return;
     
-    // Make all edges yellow for multiple target nodes
-    line.visible = true;
-    line.material.color.setHex(0xffd700); // Yellow for all edges
-    line.material.opacity = 0.8;
+    // Check if this edge connects to a target node
+    const isTargetEdge = multiplePaths.paths.some(pathData => 
+      pathData.targetId === e.source || pathData.targetId === e.target
+    );
+    
+    if (isTargetEdge) {
+      // Make target node edges yellow
+      line.visible = true;
+      line.material.color.setHex(0xffd700); // Yellow for target edges
+      line.material.opacity = 0.8;
+    } else {
+      // Keep other edges at original colors
+      line.visible = true;
+      // Restore original strength-based colors
+      let color, opacity;
+      if (e.weight >= 0.7) {
+        color = 0x4da6ff; // Bright blue
+        opacity = 0.9;
+      } else if (e.weight >= 0.5) {
+        color = 0x6b9bd2; // Medium blue
+        opacity = 0.8;
+      } else {
+        color = 0x9aa7c6; // Gray
+        opacity = 0.6;
+      }
+      line.material.color.setHex(color);
+      line.material.opacity = opacity;
+    }
   });
   
   // Update sidebar info
