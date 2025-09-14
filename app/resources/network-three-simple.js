@@ -368,7 +368,7 @@ sample.nodes.forEach((n, idx) => {
   if (n.id === 'me') {
     nodeColor = 0x4CAF50; // Bright green for user node
   } else {
-    nodeColor = 0x4DA6FF; // Medium blue for 1st-degree connections
+    nodeColor = 0x000000; // Black for 1st-degree connections (testing)
   }
   
   // Declare glow variables outside the if block
@@ -881,7 +881,7 @@ function highlightNode(nodeId, highlightType = 'none') {
   const node = nodeObjs.get(nodeId);
   if (!node) return;
   
-  const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
+  const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x000000; // Black for testing
   
   if (highlightType === 'target') {
     // Target node - vivid orange
@@ -2054,7 +2054,7 @@ function animate(){
         child.scale.setScalar(glowPulse);
         if (child.material) {
           // Ensure correct color is maintained
-          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
+          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x000000; // Black for testing
           child.material.color.setHex(originalColor);
           child.material.opacity = Math.min(opacityPulse, 1.0);
           // Mark this glow as being animated so other code doesn't override it
@@ -2100,7 +2100,7 @@ function animate(){
               child.material.color.setHex(0xffd700);
             } else {
               // Default color
-              const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
+              const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x000000; // Black for testing
               child.material.color.setHex(originalColor);
             }
           }
@@ -2122,7 +2122,7 @@ function animate(){
           child.material.color.setHex(0xffffff); // White for no tint
           child.material.opacity = 1.0; // Full opacity
         } else if (child.userData.isGlow) {
-          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x4DA6FF;
+          const originalColor = nodeId === 'me' ? 0x4CAF50 : 0x000000; // Black for testing
           child.material.color.setHex(originalColor);
           
           // Reset to original opacity based on glow layer
