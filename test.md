@@ -1,0 +1,1 @@
+# check if my git credentials are up to dates
